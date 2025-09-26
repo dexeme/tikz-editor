@@ -19,6 +19,9 @@ const EDGE_CLEAN_REGEX = new RegExp(EDGE_REGEX.source, 'g');
 
 const emptyModel = () => ({ nodes: [], edges: [] });
 
+const TIKZ_RUNTIME_ID = 'tikzjax-runtime';
+let tikzjaxLoaderPromise = null;
+
 // Garante que as fontes do TikZJax sejam carregadas apenas uma vez.
 function ensureFontsLoaded() {
   if (!document.getElementById('tikzjax-fonts')) {
@@ -30,10 +33,114 @@ function ensureFontsLoaded() {
   }
 }
 
+function waitForTikzjaxGlobal(timeoutMs = 7000) {
+  return new Promise((resolve, reject) => {
+    const start = Date.now();
+
+    const check = () => {
+      if (window.tikzjax && typeof window.tikzjax.typesetPromise === 'function') {
+        resolve(window.tikzjax);
+        return;
+      }
+
+      if (Date.now() - start >= timeoutMs) {
+        reject(
+          new Error('TikZJax carregado, mas não conseguiu inicializar o objeto global esperado.')
+        );
+        return;
+      }
+
+      if (typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(check);
+      } else {
+        setTimeout(check, 16);
+      }
+    };
+
+    check();
+  });
+}
+
+async function ensureTikzRuntime() {
+  if (typeof window === 'undefined') {
+    return Promise.resolve({
+      typesetPromise: () => Promise.resolve()
+    });
+  }
+
+  if (window.tikzjax && typeof window.tikzjax.typesetPromise === 'function') {
+    return Promise.resolve(window.tikzjax);
+  }
+
+  if (tikzjaxLoaderPromise) {
+    return tikzjaxLoaderPromise;
+  }
+
+  tikzjaxLoaderPromise = new Promise((resolve, reject) => {
+    const existingScript = document.getElementById(TIKZ_RUNTIME_ID);
+
+    const finalizeResolve = () => {
+      waitForTikzjaxGlobal()
+        .then(resolve)
+        .catch((err) => {
+          tikzjaxLoaderPromise = null;
+          reject(err);
+        });
+    };
+
+    if (existingScript) {
+      if (window.tikzjax && typeof window.tikzjax.typesetPromise === 'function') {
+        resolve(window.tikzjax);
+        return;
+      }
+
+      if (existingScript.dataset.loaded === 'true') {
+        finalizeResolve();
+        return;
+      }
+
+      existingScript.addEventListener('load', finalizeResolve, { once: true });
+      existingScript.addEventListener(
+        'error',
+        () => {
+          tikzjaxLoaderPromise = null;
+          reject(new Error('Não foi possível carregar o motor TikZJax. Verifique sua conexão.'));
+        },
+        { once: true }
+      );
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = TIKZ_RUNTIME_ID;
+    script.src = 'https://tikzjax.com/v1/tikzjax.js';
+    script.async = true;
+    const markLoaded = () => {
+      script.dataset.loaded = 'true';
+      finalizeResolve();
+    };
+
+    script.addEventListener('load', markLoaded, { once: true });
+    script.addEventListener(
+      'error',
+      () => {
+        tikzjaxLoaderPromise = null;
+        reject(new Error('Não foi possível carregar o motor TikZJax. Verifique sua conexão.'));
+      },
+      { once: true }
+    );
+    document.body.appendChild(script);
+  });
+
+  return tikzjaxLoaderPromise;
+}
+
 // Realiza o parse de um código TikZ limitado a nós e arestas direcionais.
 function parseTikz(code) {
   const withoutComments = code.replace(/%[^\n]*\n?/g, '\n');
-  const match = withoutComments.match(/\\begin\{tikzpicture\}([\s\S]*?)\\end\{tikzpicture\}/);
+  const match = withoutComments.match(
+    /\\begin\{tikzpicture\}\s*(?:\[[^\]]*\])?([\s\S]*?)\\end\{tikzpicture\}/
+  );
   if (!match) {
     throw new Error('Não encontrei um ambiente \\begin{tikzpicture} ... \\end{tikzpicture}.');
   }
@@ -126,6 +233,117 @@ function sanitizeNumber(value) {
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
+function safeParseForFallback(code) {
+  try {
+    return parseTikz(code);
+  } catch (err) {
+    return null;
+  }
+}
+
+function renderFallbackFromModel(model, container) {
+  if (!model || !model.nodes || model.nodes.length === 0) {
+    return false;
+  }
+
+  const scale = 60;
+  const padding = 40;
+
+  const xs = model.nodes.map((node) => node.x);
+  const ys = model.nodes.map((node) => node.y);
+
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+
+  const rangeX = Math.max(1, maxX - minX || 0);
+  const rangeY = Math.max(1, maxY - minY || 0);
+
+  const width = rangeX * scale + padding * 2;
+  const height = rangeY * scale + padding * 2;
+
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  svg.setAttribute('width', '100%');
+  svg.setAttribute('height', '100%');
+
+  const defs = document.createElementNS(svgNS, 'defs');
+  const marker = document.createElementNS(svgNS, 'marker');
+  marker.setAttribute('id', 'arrowhead');
+  marker.setAttribute('markerWidth', '10');
+  marker.setAttribute('markerHeight', '7');
+  marker.setAttribute('refX', '10');
+  marker.setAttribute('refY', '3.5');
+  marker.setAttribute('orient', 'auto');
+  const markerPath = document.createElementNS(svgNS, 'path');
+  markerPath.setAttribute('d', 'M0,0 L10,3.5 L0,7 Z');
+  markerPath.setAttribute('fill', '#2563eb');
+  marker.appendChild(markerPath);
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+
+  const nodeMap = new Map();
+  model.nodes.forEach((node) => {
+    const posX = padding + (node.x - minX) * scale;
+    const posY = padding + (maxY - node.y) * scale;
+    nodeMap.set(node.id, { x: posX, y: posY, label: node.label });
+  });
+
+  model.edges.forEach((edge, index) => {
+    const from = nodeMap.get(edge.from);
+    const to = nodeMap.get(edge.to);
+    if (!from || !to) {
+      return;
+    }
+    const line = document.createElementNS(svgNS, 'line');
+    line.setAttribute('x1', `${from.x}`);
+    line.setAttribute('y1', `${from.y}`);
+    line.setAttribute('x2', `${to.x}`);
+    line.setAttribute('y2', `${to.y}`);
+    line.setAttribute('stroke', '#2563eb');
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('marker-end', 'url(#arrowhead)');
+    line.setAttribute('opacity', '0.85');
+    line.setAttribute('data-edge-index', `${index}`);
+    svg.appendChild(line);
+  });
+
+  model.nodes.forEach((node, index) => {
+    const nodePosition = nodeMap.get(node.id);
+    if (!nodePosition) {
+      return;
+    }
+    const group = document.createElementNS(svgNS, 'g');
+    group.setAttribute('transform', `translate(${nodePosition.x}, ${nodePosition.y})`);
+    group.setAttribute('data-node-index', `${index}`);
+
+    const circle = document.createElementNS(svgNS, 'circle');
+    circle.setAttribute('r', '16');
+    circle.setAttribute('fill', '#f8fafc');
+    circle.setAttribute('stroke', '#0f172a');
+    circle.setAttribute('stroke-width', '2');
+    circle.setAttribute('cx', '0');
+    circle.setAttribute('cy', '0');
+    group.appendChild(circle);
+
+    const text = document.createElementNS(svgNS, 'text');
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('alignment-baseline', 'middle');
+    text.setAttribute('font-family', 'Inter, system-ui, sans-serif');
+    text.setAttribute('font-size', '10');
+    text.setAttribute('fill', '#0f172a');
+    text.textContent = nodePosition.label || node.id;
+    group.appendChild(text);
+
+    svg.appendChild(group);
+  });
+
+  container.appendChild(svg);
+  return true;
+}
+
 export default function App() {
   const previewRef = useRef(null);
   const [code, setCode] = useState(INITIAL_CODE);
@@ -137,11 +355,13 @@ export default function App() {
       return emptyModel();
     }
   });
+  const initialModelRef = useRef(model);
+  const lastParsedModelRef = useRef(model);
   const [error, setError] = useState('');
   const [engineStatus, setEngineStatus] = useState('carregando motor...');
 
   const renderTikz = useCallback(
-    (tikzCode) => {
+    (tikzCode, parsedModel = null) => {
       if (!previewRef.current) {
         return;
       }
@@ -155,30 +375,44 @@ export default function App() {
       script.textContent = tikzCode;
       container.appendChild(script);
 
-      const existing = document.getElementById('tikzjax-runtime');
-      if (existing) {
-        existing.remove();
-      }
+      ensureTikzRuntime()
+        .then((tikzjax) => tikzjax.typesetPromise([container]))
+        .then(() => setEngineStatus('motor carregado'))
+        .catch((err) => {
+          console.error(err);
+          const fallbackModel =
+            parsedModel || lastParsedModelRef.current || safeParseForFallback(tikzCode);
 
-      const loader = document.createElement('script');
-      loader.id = 'tikzjax-runtime';
-      loader.src = 'https://tikzjax.com/v1/tikzjax.js';
-      loader.async = true;
-      loader.onload = () => setEngineStatus('motor carregado');
-      loader.onerror = () => {
-        setEngineStatus('falha ao carregar');
-        setError('Não foi possível carregar o motor TikZJax. Verifique sua conexão.');
-      };
+          container.innerHTML = '';
 
-      document.body.appendChild(loader);
+          if (fallbackModel && renderFallbackFromModel(fallbackModel, container)) {
+            setEngineStatus('renderizado com fallback interno');
+            setError((prev) =>
+              prev
+                ? prev
+                : (err.message
+                    ? `${err.message} `
+                    : 'Motor TikZJax indisponível. ') + 'Renderização alternativa aplicada.'
+            );
+          } else {
+            setEngineStatus('falha ao carregar');
+            setError(
+              err.message || 'Não foi possível carregar o motor TikZJax. Verifique sua conexão.'
+            );
+          }
+        });
     },
     [setError]
   );
 
   useEffect(() => {
     ensureFontsLoaded();
-    renderTikz(INITIAL_CODE);
+    renderTikz(INITIAL_CODE, initialModelRef.current);
   }, [renderTikz]);
+
+  useEffect(() => {
+    lastParsedModelRef.current = model;
+  }, [model]);
 
   const syncFromModel = useCallback(
     (updater) => {
@@ -187,7 +421,7 @@ export default function App() {
         const nextCode = buildTikz(nextModel);
         setCode(nextCode);
         setError('');
-        renderTikz(nextCode);
+        renderTikz(nextCode, nextModel);
         return nextModel;
       });
     },
@@ -199,7 +433,7 @@ export default function App() {
       const nextModel = parseTikz(code);
       setModel(nextModel);
       setError('');
-      renderTikz(code);
+      renderTikz(code, nextModel);
     } catch (err) {
       setError(err.message);
     }
