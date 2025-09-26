@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editor TikZ com Vue</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+  <div id="app" v-cloak>
+    <header class="app-header">
+      <div>
+        <h1>Tikz Editor</h1>
+      </div>
+      <div class="header-actions">
+        <div class="thickness-control">
+          <label for="edge-thickness">Grossura das setas</label>
+          <div class="thickness-control-input">
+            <input
+              id="edge-thickness"
+              type="range"
+              min="1"
+              max="8"
+              step="0.5"
+              :value="edgeThickness"
+              @input="updateEdgeThickness($event.target.value)"
+              @change="commitHistory"
+            >
+            <span>{{ edgeThicknessDisplay }} px</span>
+          </div>
+        </div>
+        <div class="label-alignment-control">
+          <label for="edge-label-alignment">Centralizar Labels A...</label>
+          <select
+            id="edge-label-alignment"
+            :value="edgeLabelAlignment"
+            @change="onEdgeLabelAlignmentChange($event.target.value)"
+          >
+            <option value="auto">Automático</option>
+            <option value="left">Left</option>
+            <option value="center">Center</option>
+            <option value="right">Right (atual)</option>
+          </select>
+        </div>
+        <button class="ghost" @click="undo" :disabled="!canUndo">Desfazer</button>
+        <button class="ghost" @click="redo" :disabled="!canRedo">Refazer</button>
+        <button class="ghost" @click="resetGraph" :disabled="!canReset">Reiniciar</button>
+        <button class="ghost" type="button" @click="triggerLoadDiagram">Carregar diagrama</button>
+        <button class="ghost" @click="saveDiagram" :disabled="!canReset">Salvar diagrama</button>
+        <button class="primary" @click="copyToClipboard" :disabled="!tikzCode">Copiar TikZ</button>
+      </div>
+    </header>
+
+    <input
+      type="file"
+      ref="diagramFileInputRef"
+      class="sr-only"
+      accept="application/json"
+      @change="handleDiagramFileChange"
+    >
+
+    <main class="app-body">
+      <section class="workspace">
+        <div class="toolbar" role="radiogroup" aria-label="Ferramentas de edição">
+          <div class="tool-with-menu">
+            <button
+              ref="nodeMenuButtonRef"
+              type="button"
+              :aria-expanded="showNodeMenu"
+              :class="['tool-btn', showNodeMenu ? 'active' : '', 'blue']"
+              @click="toggleNodeMenu"
+            >
+              <span class="tool-icon">➕</span>
+              <span class="tool-label">Novo nó</span>
+            </button>
+            <div v-if="showNodeMenu" ref="nodeMenuRef" class="node-menu">
+              <button
+                v-for="shape in availableShapes"
+                :key="shape.id"
+                type="button"
+                @click="createNodeFromMenu(shape.id)"
+              >
+                {{ shape.label }}
+              </button>
+            </div>
+          </div>
+          <button
+            v-for="tool in tools"
+            :key="tool.mode"
+            type="button"
+            :aria-pressed="mode === tool.mode"
+            :class="['tool-btn', mode === tool.mode ? 'active' : '', tool.accent]"
+            @click="changeMode(tool.mode)"
+          >
+            <span class="tool-icon">{{ tool.icon }}</span>
+            <span class="tool-label">{{ tool.label }}</span>
+          </button>
+        </div>
+
+        <div class="canvas-wrapper" ref="canvasWrapperRef" :class="{ 'is-panning': isPanningActive }">
+          <canvas
+            ref="canvasRef"
+            width="1280"
+            height="720"
+            @mousedown="onCanvasMouseDown"
+            @mousemove="onCanvasMouseMove"
+            @mouseup="onCanvasMouseUp"
+            @mouseleave="onCanvasMouseUp"
+            @dblclick="onCanvasDblClick"
+            @wheel.prevent="onCanvasWheel"
+          ></canvas>
+          <div class="viewport-controls">
+            <button type="button" @click="zoomOut">-</button>
+            <span>{{ zoomLevel }}%</span>
+            <button type="button" @click="zoomIn">+</button>
+            <button type="button" @click="resetView">Resetar</button>
+            <button type="button" v-if="frame" @click="focusFrame">Enquadrar frame</button>
+          </div>
+          <div
+            v-if="inlineEditor.visible"
+            class="inline-editor"
+            :style="{
+              width: inlineEditor.width + 'px',
+              height: inlineEditor.height + 'px',
+              left: inlineEditor.left + 'px',
+              top: inlineEditor.top + 'px',
+            }"
+          >
+            <textarea
+              ref="inlineEditorRef"
+              v-model="inlineEditor.value"
+              @keydown="handleEditorKeydown"
+            ></textarea>
+            <div class="inline-editor-actions">
+              <button type="button" @mousedown.prevent @click="confirmInlineEditor">Salvar</button>
+              <button type="button" @mousedown.prevent @click="closeInlineEditor">Cancelar</button>
+            </div>
+          </div>
+          <p class="canvas-hint">Clique no canvas para {{ currentHint }}</p>
+        </div>
+
+        <div class="panel-grid">
+          <section class="panel">
+            <header><h2>Detalhes do Nó</h2></header>
+            <div v-if="selected?.type === 'node'" class="panel-content">
+              <label>
+                Texto
+                <input type="text" v-model="selected.item.label" @input="invalidateTikz" @change="commitHistory">
+              </label>
+              <label>
+                Cor de preenchimento
+                <input type="color" v-model="selected.item.color" @input="invalidateTikz" @change="commitHistory">
+              </label>
+              <label>
+                Cor da borda
+                <input type="color" v-model="selected.item.borderColor" @input="invalidateTikz" @change="commitHistory">
+              </label>
+              <label>
+                Forma
+                <select v-model="selected.item.shape" @change="onOptionChange">
+                  <option value="circle">Círculo</option>
+                  <option value="rectangle">Retângulo</option>
+                  <option value="decision">Nó de decisão</option>
+                  <option value="diamond">Losango</option>
+                  <option value="triangle">Triângulo</option>
+                </select>
+              </label>
+              <label>
+                Tamanho da fonte
+                <select v-model="selected.item.fontSize" @change="onOptionChange">
+                  <option value="12">Pequena</option>
+                  <option value="16">Média</option>
+                  <option value="20">Grande</option>
+                </select>
+              </label>
+              <button class="ghost" @click="removeSelected">Remover Nó</button>
+            </div>
+            <div v-else class="empty-state">Selecione um nó para editar seus detalhes.</div>
+          </section>
+
+          <section class="panel">
+            <header><h2>Detalhes da Aresta</h2></header>
+            <div v-if="selected?.type === 'edge'" class="panel-content">
+              <label>
+                Estilo de linha
+                <select v-model="selected.item.style" @change="onOptionChange">
+                  <option value="solid">Sólida</option>
+                  <option value="dashed">Tracejada</option>
+                  <option value="dotted">Pontilhada</option>
+                </select>
+              </label>
+              <label>
+                Cor da linha
+                <input type="color" v-model="selected.item.color" @input="invalidateTikz" @change="commitHistory">
+              </label>
+              <label>
+                Direção
+                <select v-model="selected.item.direction" @change="onOptionChange">
+                  <option value="->">-&gt;</option>
+                  <option value="<->">&lt;-&gt;</option>
+                  <option value="-">-</option>
+                </select>
+              </label>
+              <label>
+                Trajeto
+                <select v-model="selected.item.shape" @change="onOptionChange">
+                  <option value="straight">Reta</option>
+                  <option value="90-vertical">90° (primeiro vertical)</option>
+                  <option value="90-horizontal">90° (primeiro horizontal)</option>
+                  <option value="curva-esquerda">Curva para a esquerda</option>
+                  <option value="curva-direita">Curva para a direita</option>
+                </select>
+              </label>
+              <label v-if="selected.item.shape === 'curva-esquerda' || selected.item.shape === 'curva-direita'">
+                Curvatura
+                <input type="range" min="10" max="60" v-model="selected.item.bend" @input="invalidateTikz" @change="commitHistory">
+              </label>
+              <label v-if="selected.item.label?.text">
+                Cor do texto da etiqueta
+                <input
+                  type="color"
+                  :value="selected.item.label?.color || '#e2e8f0'"
+                  @input="updateEdgeLabelColor($event.target.value)"
+                  @change="commitHistory"
+                >
+              </label>
+              <p v-if="selected.item.label?.text" class="panel-hint">Arraste o texto diretamente no canvas para ajustar sua posição.</p>
+              <button class="ghost" @click="removeSelected">Remover Aresta</button>
+            </div>
+            <div v-else class="empty-state">Selecione uma aresta para ajustar suas opções.</div>
+          </section>
+
+          <section class="panel">
+            <header><h2>Caixa de Texto</h2></header>
+            <div v-if="selected?.type === 'text'" class="panel-content">
+              <p>Use duplo clique sobre a caixa para editar seu conteúdo.</p>
+              <label>
+                Conteúdo
+                <textarea
+                  rows="4"
+                  v-model="selected.item.text"
+                  @input="invalidateTikz"
+                  @change="commitHistory"
+                ></textarea>
+              </label>
+              <label>
+                Largura (px)
+                <input
+                  type="number"
+                  min="96"
+                  v-model.number="selected.item.width"
+                  @input="invalidateTikz"
+                  @change="commitHistory"
+                >
+              </label>
+              <label>
+                Altura (px)
+                <input
+                  type="number"
+                  min="60"
+                  v-model.number="selected.item.height"
+                  @input="invalidateTikz"
+                  @change="commitHistory"
+                >
+              </label>
+              <label>
+                Tamanho da fonte
+                <input
+                  type="number"
+                  min="12"
+                  max="28"
+                  v-model.number="selected.item.fontSize"
+                  @input="invalidateTikz"
+                  @change="commitHistory"
+                >
+              </label>
+              <button class="ghost" @click="openTextBlockEditor(selected.item)">Editar texto</button>
+              <button class="ghost" @click="removeSelected">Remover Caixa de Texto</button>
+            </div>
+            <div v-else class="empty-state">Selecione uma caixa de texto para ajustar seu formato.</div>
+          </section>
+
+          <section class="panel">
+            <header><h2>Frame da Figura</h2></header>
+            <div v-if="frame" class="panel-content frame-panel">
+              <label>
+                Posição X
+                <input type="number" v-model.number="frame.x" @change="commitHistory">
+              </label>
+              <label>
+                Posição Y
+                <input type="number" v-model.number="frame.y" @change="commitHistory">
+              </label>
+              <label>
+                Largura
+                <input type="number" min="64" v-model.number="frame.width" @change="commitHistory">
+              </label>
+              <label>
+                Altura
+                <input type="number" min="64" v-model.number="frame.height" @change="commitHistory">
+              </label>
+              <div class="frame-actions">
+                <button type="button" class="ghost" @click="focusFrame">Enquadrar</button>
+                <button type="button" class="ghost danger" @click="removeFrame">Remover frame</button>
+              </div>
+            </div>
+            <div v-else class="empty-state">
+              <p>Crie um frame para limitar a área renderizada e definir a escala da figura.</p>
+              <button class="ghost" type="button" @click="createFrame">Criar frame padrão</button>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <aside class="sidebar">
+        <section class="panel">
+          <header><h2>Status</h2></header>
+          <div class="panel-content">
+            <p>{{ statusMessage }}</p>
+            <ul class="tips">
+              <li>Use CTRL/CMD + Clique para selecionar múltiplos itens (em breve).</li>
+              <li>Arraste nós utilizando a ferramenta <strong>Mover</strong>.</li>
+            </ul>
+          </div>
+        </section>
+        <section class="panel template-panel">
+          <header><h2>Modelos rápidos</h2></header>
+          <div class="panel-content template-list">
+            <article v-for="template in templates" :key="template.id" class="template-card">
+              <div class="template-card-body">
+                <h3>{{ template.name }}</h3>
+                <p>{{ template.description }}</p>
+              </div>
+              <button type="button" class="ghost" @click="applyTemplate(template.id)">
+                Carregar modelo
+              </button>
+            </article>
+          </div>
+        </section>
+        <section class="panel code-panel">
+          <header><h2>Código TikZ</h2></header>
+          <textarea readonly :value="tikzCode" aria-label="Código gerado"></textarea>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
