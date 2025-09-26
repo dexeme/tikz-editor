@@ -1,0 +1,191 @@
+Tarefa:
+Crie um protótipo web (front-end) de um Editor de TikZ focado em diagramas/fluxogramas simples, com edição bidirecional:
+
+o usuário cola/importa código TikZ, o app renderiza;
+
+o usuário pode editar o código e re-renderizar;
+
+o usuário pode editar pela interface (UI) — adicionar/remover nós e arestas, alterar rótulos e coordenadas — e o código TikZ é atualizado automaticamente.
+
+Requisitos de stack e projeto
+
+Node >= 18, npm.
+
+Vite + React (JavaScript).
+
+Estilos: pode usar Tailwind (opcional). Se não usar, aplique CSS simples.
+
+Renderização de TikZ no browser: use TikZJax (WASM) carregado via CDN:
+
+https://tikzjax.com/v1/fonts.css
+
+https://tikzjax.com/v1/tikzjax.js
+
+O preview deve inserir dinamicamente <script type="text/tikz">...</script> e o TikZJax deve converter para SVG.
+
+Não dependa de servidores externos além do CDN do TikZJax; tudo deve rodar localmente (client-side).
+
+Funcionalidades obrigatórias
+
+Área de código (textarea) para colar/editar o TikZ.
+
+Botão “Parsear & Renderizar” que: (a) parseia o código para um modelo interno; (b) renderiza o preview.
+
+Preview SVG gerado pelo TikZJax (com status “carregando motor”/“motor carregado”).
+
+UI de edição “visual por formulário”:
+
+Nós: listar cada nó com campos rótulo, x, y; botões para remover e para adicionar novo nó.
+
+Arestas: listar arestas como pares de/para (combobox com os IDs dos nós), com botão para remover e botão para adicionar uma aresta.
+
+Sincronização bidirecional real:
+
+Do código → modelo: ao clicar “Parsear & Renderizar”, parsear o TikZ e popular a UI.
+
+Da UI → código: ao alterar rótulo/coord/arestas, reconstruir o ambiente \begin{tikzpicture}...\end{tikzpicture} e atualizar o textarea e o preview.
+
+Exemplo inicial: ao carregar a página, já trazer um TikZ mínimo de fluxograma linear (Início → Processo → Fim) que renderize sem ações do usuário.
+
+Mensagens de erro simples se o parse falhar (ex.: destacar que o protótipo suporta apenas um subconjunto mínimo de comandos).
+
+Subconjunto do TikZ suportado (MVP do parser)
+
+Nós (com ou sem opções entre [], que podem ser preservadas como string opaca):
+
+\node (ID) at (x,y) {Label};
+
+Também aceitar \node (ID) [opções] at (x,y) {Label};
+
+Arestas direcionais simples:
+
+\draw[->] (ID1) -- (ID2);
+
+Observações:
+
+IDs são alfanuméricos/underscore, sem espaços.
+
+Coordenadas x,y numéricas (float).
+
+Espaços em branco flexíveis.
+
+Ignorar comentários % ....
+
+Não precisa suportar \usetikzlibrary{...} neste MVP.
+
+Estratégia de renderização com TikZJax (detalhes)
+
+Carregar fonts.css no <head> (idempotente).
+
+Carregar tikzjax.js no <head> de forma dinâmica.
+
+Para re-renderizar, recriar o <script type="text/tikz">...</script> dentro do contêiner de preview; se necessário, recarregar o script tikzjax.js para forçar novo passe (aceitável no protótipo).
+
+O preview precisa ficar limpo entre renderizações (remover SVGs/scripts anteriores do contêiner).
+
+Arquitetura sugerida
+
+Componente raiz App.jsx.
+
+Estado:
+
+code: string do TikZ atual.
+
+model: { nodes: Array<{id, x, y, label, opts?}>, edges: Array<{from, to}> }.
+
+error: string opcional.
+
+Funções:
+
+parseTikz(code) => model (regex simples robusto ao whitespace).
+
+buildTikz(model) => code (gera \begin{tikzpicture}[>=stealth] ... \end{tikzpicture}).
+
+syncFromCode() → parseia code, atualiza model e preview.
+
+syncFromModel(nextModel) → atualiza model, compõe code, re-renderiza.
+
+Ações da UI: addNode, addEdge, updateNode(idx, patch), deleteNode(idx), updateEdge(idx, from/to).
+
+UI/UX mínima
+
+Layout em duas colunas (código/controles à esquerda; preview à direita) em telas largas; coluna única em mobile.
+
+Botões: “Parsear & Renderizar”, “+ Nó”, “+ Aresta (1º → último)”.
+
+Cards/listas para nós e arestas, com inputs/combobox.
+
+Área do preview com borda e indicação de estado (“carregando motor…” | “motor carregado”).
+
+Mensagens de ajuda: “Este protótipo suporta nós + arestas simples”.
+
+Sem funcionalidades de arrastar nós no SVG (isso pode ser um extra opcional).
+
+Sem bibliotecas adicionais TikZ neste MVP.
+
+Exemplo de TikZ inicial (usar como estado inicial e no README):
+
+\begin{tikzpicture}[>=stealth]
+  % Nós
+  \node (start) at (0,0) {Início};
+  \node (proc)  at (3,0) {Processo};
+  \node (end)   at (6,0) {Fim};
+  % Setas
+  \draw[->] (start) -- (proc);
+  \draw[->] (proc) -- (end);
+\end{tikzpicture}
+
+
+Critérios de aceite
+
+ Rodar com npm install && npm run dev (Vite).
+
+ Ao abrir, o exemplo inicial aparece e renderiza em SVG.
+
+ Colar novo TikZ (que obedeça ao subset) + clicar “Parsear & Renderizar” atualiza UI e preview.
+
+ Alterar rótulo/x/y de um nó pela UI atualiza código e preview.
+
+ Adicionar/remover nós e arestas pela UI reflete no código e preview.
+
+ Erros de parse mostram mensagem amigável (sem travar a página).
+
+ Código bem comentado; sem TODOs pendentes; não deixar nada “para implementar depois”.
+
+Entrega
+
+Todos os arquivos do projeto Vite (incluindo package.json).
+
+Código claro e comentado em português.
+
+Se usar Tailwind, incluir tailwind.config.js, postcss.config.js e instruções no README.
+
+Um README.md com:
+
+Pré-requisitos (Node 18+),
+
+Passos para rodar,
+
+Explicação do subset suportado,
+
+Limitações conhecidas,
+
+Como expandir (opcional: arrastar nós no SVG; suporte a \usetikzlibrary{shapes.geometric} etc.).
+
+Extras (opcionais, se couber tempo)
+
+Botão “Copiar código TikZ” e “Baixar SVG”.
+
+Persistência simples no localStorage do último código.
+
+Validação leve: avisar se aresta referencia nó inexistente.
+
+Importante
+
+Não esconda variáveis/funções; não deixe partes “para depois”.
+
+Não altere o escopo sem avisar (mantenha o MVP exatamente como descrito).
+
+Priorize confiabilidade da renderização: se precisar, re-inicialize o TikZJax a cada render.
+
+Use essas especificações para gerar todo o projeto (arquivos, componentes, helpers, CSS) pronto para npm run dev.
