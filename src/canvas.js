@@ -3,6 +3,40 @@ import { distanceToSegment, getQuadraticControlPoint } from './utils/geometry.js
 const NODE_RADIUS = 32;
 const NODE_WIDTH = 112;
 const NODE_HEIGHT = 64;
+const CONNECTION_HANDLE_RADIUS = 8;
+const CONNECTION_HANDLE_HITBOX = CONNECTION_HANDLE_RADIUS * 1.75;
+
+const CARDINAL_DIRECTIONS = ['north', 'east', 'south', 'west'];
+
+function getNodeDimensions(node) {
+  if (node.shape === 'circle') {
+    return { halfWidth: NODE_RADIUS, halfHeight: NODE_RADIUS };
+  }
+  return { halfWidth: NODE_WIDTH / 2, halfHeight: NODE_HEIGHT / 2 };
+}
+
+function getAnchorPoint(node, direction) {
+  const { halfWidth, halfHeight } = getNodeDimensions(node);
+  switch (direction) {
+    case 'north':
+      return { x: node.x, y: node.y - halfHeight };
+    case 'south':
+      return { x: node.x, y: node.y + halfHeight };
+    case 'east':
+      return { x: node.x + halfWidth, y: node.y };
+    case 'west':
+      return { x: node.x - halfWidth, y: node.y };
+    default:
+      return { x: node.x, y: node.y };
+  }
+}
+
+function getAnchorPoints(node) {
+  return CARDINAL_DIRECTIONS.map(direction => ({
+    direction,
+    point: getAnchorPoint(node, direction),
+  }));
+}
 const TEXT_BLOCK_MIN_WIDTH = 96;
 const TEXT_BLOCK_MIN_HEIGHT = 60;
 const TEXT_BLOCK_PADDING = 14;
@@ -53,8 +87,8 @@ export function createCanvasRenderer(canvas, state) {
 
     ctx.beginPath();
     if (geometry.type === 'quadratic') {
-      ctx.moveTo(from.x, from.y);
-      ctx.quadraticCurveTo(geometry.control.x, geometry.control.y, to.x, to.y);
+      ctx.moveTo(geometry.startPoint.x, geometry.startPoint.y);
+      ctx.quadraticCurveTo(geometry.control.x, geometry.control.y, geometry.endPoint.x, geometry.endPoint.y);
     } else {
       geometry.segments.forEach((segment, index) => {
         if (index === 0) {
@@ -98,11 +132,24 @@ export function createCanvasRenderer(canvas, state) {
     ctx.restore();
   }
 
-  function drawNode(node) {
+  function drawNodeBase(node) {
     ctx.save();
-    ctx.lineWidth = 3;
-    const isSelected = state.selected?.item?.id === node.id;
-    ctx.strokeStyle = isSelected ? '#38bdf8' : 'rgba(148, 163, 184, 0.55)';
+    const isSelected = state.selected?.type === 'node' && state.selected?.item?.id === node.id;
+    const isHovered = state.hoverNodeId === node.id;
+    const isOrigin = state.edgeDraft?.from?.nodeId === node.id;
+    const targetInfo = state.edgeDraft?.target;
+    const isTarget = targetInfo?.nodeId === node.id;
+    const strokeColor = (() => {
+      if (isSelected) return '#38bdf8';
+      if (isTarget) return targetInfo.valid ? '#22c55e' : '#ef4444';
+      if (isOrigin) return '#38bdf8';
+      if (isHovered && state.mode === 'addEdge') return 'rgba(96, 165, 250, 0.9)';
+      if (isHovered) return 'rgba(148, 163, 184, 0.85)';
+      return 'rgba(148, 163, 184, 0.55)';
+    })();
+
+    ctx.lineWidth = isTarget ? 3.6 : 3;
+    ctx.strokeStyle = strokeColor;
     ctx.fillStyle = node.color || '#e2e8f0';
 
     const path = getNodePath(node);
@@ -114,6 +161,47 @@ export function createCanvasRenderer(canvas, state) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(node.label || 'Nó', node.x, node.y);
+    ctx.restore();
+  }
+
+  function drawNodeHandles(node) {
+    const isSelected = state.selected?.type === 'node' && state.selected?.item?.id === node.id;
+    const isHovered = state.hoverNodeId === node.id;
+    const isOrigin = state.edgeDraft?.from?.nodeId === node.id;
+    const targetInfo = state.edgeDraft?.target;
+    const isTarget = targetInfo?.nodeId === node.id;
+    const shouldShow = isSelected || isHovered || isOrigin || isTarget;
+    if (!shouldShow) return;
+
+    const anchors = getAnchorPoints(node);
+    ctx.save();
+    anchors.forEach(({ direction, point }) => {
+      let fill = 'rgba(226, 232, 240, 0.95)';
+      let stroke = 'rgba(100, 116, 139, 0.85)';
+      if (state.edgeDraft?.from?.nodeId === node.id && state.edgeDraft?.from?.anchor === direction) {
+        fill = '#38bdf8';
+        stroke = '#0f172a';
+      } else if (isTarget && targetInfo.anchor === direction) {
+        if (targetInfo.valid) {
+          fill = '#22c55e';
+          stroke = '#064e3b';
+        } else {
+          fill = '#ef4444';
+          stroke = '#7f1d1d';
+        }
+      } else if (state.hoverAnchor === direction && isHovered) {
+        fill = '#38bdf8';
+        stroke = '#0f172a';
+      }
+
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, CONNECTION_HANDLE_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 2;
+      ctx.fill();
+      ctx.stroke();
+    });
     ctx.restore();
   }
 
@@ -246,16 +334,19 @@ export function createCanvasRenderer(canvas, state) {
   }
 
   function calculateEdgeGeometry(from, to, edge) {
+    const startPoint = getAnchorPoint(from, edge.fromAnchor);
+    const endPoint = getAnchorPoint(to, edge.toAnchor);
+
     if (edge.shape?.startsWith('bend')) {
-      const control = getQuadraticControlPoint(from, to, edge.shape, Number(edge.bend) || 30);
-      const mid = getQuadraticPoint(from, control, to, 0.5);
-      const endVec = { x: to.x - control.x, y: to.y - control.y };
-      const startVec = { x: control.x - from.x, y: control.y - from.y };
+      const control = getQuadraticControlPoint(startPoint, endPoint, edge.shape, Number(edge.bend) || 30);
+      const mid = getQuadraticPoint(startPoint, control, endPoint, 0.5);
+      const endVec = { x: endPoint.x - control.x, y: endPoint.y - control.y };
+      const startVec = { x: control.x - startPoint.x, y: control.y - startPoint.y };
       return {
         type: 'quadratic',
+        startPoint,
+        endPoint,
         control,
-        startPoint: from,
-        endPoint: to,
         startAngle: Math.atan2(startVec.y, startVec.x),
         endAngle: Math.atan2(endVec.y, endVec.x),
         labelPoint: mid,
@@ -264,19 +355,19 @@ export function createCanvasRenderer(canvas, state) {
 
     let segments;
     if (edge.shape === '|-') {
-      const mid = { x: to.x, y: from.y };
+      const mid = { x: endPoint.x, y: startPoint.y };
       segments = [
-        { start: from, end: mid },
-        { start: mid, end: to },
+        { start: startPoint, end: mid },
+        { start: mid, end: endPoint },
       ];
     } else if (edge.shape === '-|') {
-      const mid = { x: from.x, y: to.y };
+      const mid = { x: startPoint.x, y: endPoint.y };
       segments = [
-        { start: from, end: mid },
-        { start: mid, end: to },
+        { start: startPoint, end: mid },
+        { start: mid, end: endPoint },
       ];
     } else {
-      segments = [{ start: from, end: to }];
+      segments = [{ start: startPoint, end: endPoint }];
     }
 
     const totalLength = segments.reduce((sum, segment) => sum + Math.hypot(segment.end.x - segment.start.x, segment.end.y - segment.start.y), 0);
@@ -302,8 +393,8 @@ export function createCanvasRenderer(canvas, state) {
     return {
       type: 'polyline',
       segments,
-      startPoint: first.start,
-      endPoint: last.end,
+      startPoint,
+      endPoint,
       startAngle: Math.atan2(first.end.y - first.start.y, first.end.x - first.start.x),
       endAngle: Math.atan2(last.end.y - last.start.y, last.end.x - last.start.x),
       labelPoint,
@@ -317,6 +408,32 @@ export function createCanvasRenderer(canvas, state) {
     return { x, y };
   }
 
+  function drawEdgePreview() {
+    const draft = state.edgeDraft;
+    if (!draft) return;
+
+    const fromNode = state.nodes.find(node => node.id === draft.from?.nodeId);
+    if (!fromNode || !draft.pointer) return;
+    const startPoint = getAnchorPoint(fromNode, draft.from.anchor);
+    let endPoint = draft.pointer;
+    if (draft.target?.nodeId) {
+      const targetNode = state.nodes.find(node => node.id === draft.target.nodeId);
+      if (targetNode) {
+        endPoint = getAnchorPoint(targetNode, draft.target.anchor);
+      }
+    }
+
+    ctx.save();
+    ctx.setLineDash([8, 6]);
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = draft.target?.valid ? '#38bdf8' : 'rgba(148, 163, 184, 0.8)';
+    ctx.beginPath();
+    ctx.moveTo(startPoint.x, startPoint.y);
+    ctx.lineTo(endPoint.x, endPoint.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function draw() {
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -326,8 +443,10 @@ export function createCanvasRenderer(canvas, state) {
     ctx.save();
     ctx.setTransform(rendererState.pixelRatio, 0, 0, rendererState.pixelRatio, 0, 0);
     state.edges.forEach(drawEdge);
-    state.nodes.forEach(drawNode);
+    state.nodes.forEach(drawNodeBase);
     state.textBlocks?.forEach(drawTextBlock);
+    state.nodes.forEach(drawNodeHandles);
+    drawEdgePreview();
     ctx.restore();
   }
 
@@ -344,21 +463,38 @@ export function createCanvasRenderer(canvas, state) {
       const from = state.nodes.find(node => node.id === edge.from);
       const to = state.nodes.find(node => node.id === edge.to);
       if (!from || !to) return false;
+      const startPoint = getAnchorPoint(from, edge.fromAnchor);
+      const endPoint = getAnchorPoint(to, edge.toAnchor);
       if (edge.shape?.startsWith('bend')) {
-        // approximate by checking straight distance to endpoints
-        const cp = getQuadraticControlPoint(from, to, edge.shape, Number(edge.bend) || 30);
-        const dist = distanceToQuadratic({ x, y }, from, cp, to);
+        const cp = getQuadraticControlPoint(startPoint, endPoint, edge.shape, Number(edge.bend) || 30);
+        const dist = distanceToQuadratic({ x, y }, startPoint, cp, endPoint);
         return dist <= threshold;
       }
       if (edge.shape === '|-' || edge.shape === '-|') {
-        const mid = edge.shape === '|-' ? { x: to.x, y: from.y } : { x: from.x, y: to.y };
+        const mid = edge.shape === '|-'
+          ? { x: endPoint.x, y: startPoint.y }
+          : { x: startPoint.x, y: endPoint.y };
         return (
-          distanceToSegment({ x, y }, from, mid) <= threshold ||
-          distanceToSegment({ x, y }, mid, to) <= threshold
+          distanceToSegment({ x, y }, startPoint, mid) <= threshold ||
+          distanceToSegment({ x, y }, mid, endPoint) <= threshold
         );
       }
-      return distanceToSegment({ x, y }, from, to) <= threshold;
+      return distanceToSegment({ x, y }, startPoint, endPoint) <= threshold;
     }) || null;
+  }
+
+  function getAnchorAtPosition(x, y) {
+    for (let index = state.nodes.length - 1; index >= 0; index -= 1) {
+      const node = state.nodes[index];
+      const anchors = getAnchorPoints(node);
+      for (const anchor of anchors) {
+        const distance = Math.hypot(anchor.point.x - x, anchor.point.y - y);
+        if (distance <= CONNECTION_HANDLE_HITBOX) {
+          return { node, anchor: anchor.direction };
+        }
+      }
+    }
+    return null;
   }
 
   function getTextBlockAtPosition(x, y) {
@@ -408,6 +544,7 @@ export function createCanvasRenderer(canvas, state) {
       draw,
       getNodeAtPosition,
       getEdgeAtPosition,
+      getAnchorAtPosition,
       getTextBlockAtPosition,
       getViewport: () => ({ width: rendererState.width, height: rendererState.height }),
       getEdgeGeometry: edge => {
@@ -416,5 +553,6 @@ export function createCanvasRenderer(canvas, state) {
         if (!from || !to) return null;
         return calculateEdgeGeometry(from, to, edge);
       },
+      getAnchorPoint: (node, anchor) => getAnchorPoint(node, anchor),
     };
   }

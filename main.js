@@ -139,12 +139,12 @@ createApp({
     const mode = computed(() => state.mode);
     const selected = computed(() => state.selected);
 
-    const defaultStatus = computed(() => {
+const defaultStatus = computed(() => {
       switch (state.mode) {
         case 'addEdge':
-          return state.edgeStart
-            ? 'Escolha o nó de destino para finalizar a aresta.'
-            : 'Selecione o nó inicial da nova aresta.';
+          return state.edgeDraft
+            ? 'Solte sobre outro ponto de conexão para concluir a aresta.'
+            : 'Clique em um ponto de conexão para iniciar uma nova aresta.';
         case 'addText':
           return 'Clique no canvas para posicionar uma nova caixa de texto.';
         case 'move':
@@ -159,12 +159,12 @@ createApp({
     const statusMessage = computed(() => feedback.value || defaultStatus.value);
 
     const currentHint = computed(() => {
-      if (state.mode === 'addEdge' && state.edgeStart) {
+      if (state.mode === 'addEdge' && state.edgeDraft) {
         return 'ligar a aresta ao nó de destino';
       }
       switch (state.mode) {
         case 'addEdge':
-          return 'escolher o nó inicial da aresta';
+          return 'arrastar a partir de um conector visível';
         case 'addText':
           return 'inserir uma caixa de texto livre';
         case 'move':
@@ -218,7 +218,10 @@ createApp({
     function changeMode(newMode) {
       state.mode = newMode;
       if (newMode !== 'addEdge') {
-        state.edgeStart = null;
+        state.edgeDraft = null;
+        state.hoverNodeId = null;
+        state.hoverAnchor = null;
+        renderer.value?.draw();
       }
       showNodeMenu.value = false;
       flash(defaultStatus.value);
@@ -260,10 +263,14 @@ createApp({
       state.edges = [];
       state.textBlocks = [];
       state.selected = null;
-      state.edgeStart = null;
+      state.edgeDraft = null;
+      state.hoverNodeId = null;
+      state.hoverAnchor = null;
+      state.pointer = null;
       state.mode = 'select';
       pushHistory();
       flash('O diagrama foi limpo. Comece adicionando novos elementos.');
+      renderer.value?.draw();
     }
 
     function setSelected(payload) {
@@ -296,6 +303,15 @@ createApp({
       };
     }
 
+    function determineAnchorForPointer(node, point) {
+      const dx = point.x - node.x;
+      const dy = point.y - node.y;
+      if (Math.abs(dx) > Math.abs(dy)) {
+        return dx >= 0 ? 'east' : 'west';
+      }
+      return dy >= 0 ? 'south' : 'north';
+    }
+
     function startDrag(context) {
       state.dragContext = {
         ...context,
@@ -306,28 +322,77 @@ createApp({
 
     function onCanvasMouseDown(event) {
       const pointer = getPointerPosition(event);
+      state.pointer = pointer;
+      const anchorHit = renderer.value?.getAnchorAtPosition(pointer.x, pointer.y) || null;
       const textHit = renderer.value?.getTextBlockAtPosition(pointer.x, pointer.y) || null;
-      const node = textHit ? null : renderer.value?.getNodeAtPosition(pointer.x, pointer.y) || null;
+      let node = textHit ? null : renderer.value?.getNodeAtPosition(pointer.x, pointer.y) || null;
       const edge = !node && !textHit ? renderer.value?.getEdgeAtPosition(pointer.x, pointer.y) || null : null;
-
+      if (!node && anchorHit) {
+        node = anchorHit.node;
+      }
       closeNodeMenu();
 
-      if (state.mode === 'select') {
-        if (textHit) {
-          setSelected({ type: 'text', item: textHit.block });
-        } else if (node) {
-          setSelected({ type: 'node', item: node });
-        } else if (edge) {
-          setSelected({ type: 'edge', item: edge });
+            if (state.mode === 'addText') {
+        const width = 240;
+        const height = 120;
+        const block = makeTextBlock(pointer.x - width / 2, pointer.y - height / 2, width, height);
+        const { width: viewWidth, height: viewHeight } = currentViewport();
+        block.x = Math.min(Math.max(block.x, 16), Math.max(16, viewWidth - width - 16));
+        block.y = Math.min(Math.max(block.y, 16), Math.max(16, viewHeight - height - 16));
+        state.textBlocks = [...state.textBlocks, block];
+        setSelected({ type: 'text', item: block });
+        state.mode = 'select';
+        pushHistory();
+        flash('Caixa de texto criada. Use duplo clique para editar o conteúdo.');
+        renderer.value?.draw();
+        return;
+      }
+
+      if (state.mode === 'addEdge') {
+        if (node) {
+          const anchor = anchorHit?.anchor || determineAnchorForPointer(node, pointer);
+          state.edgeDraft = {
+            from: { nodeId: node.id, anchor },
+            pointer,
+            target: null,
+          };
+          state.hoverNodeId = node.id;
+          state.hoverAnchor = anchor;
         } else {
+          state.edgeDraft = null;
+          state.hoverNodeId = null;
+          state.hoverAnchor = null;
+        }
+        renderer.value?.draw();
+        event.preventDefault();
+        return;
+      }
+
+      if (state.mode === 'delete') {
+        if (textHit) {
+          state.textBlocks = state.textBlocks.filter(block => block.id !== textHit.block.id);
+          flash('Caixa de texto removida.');
+        } else if (node) {
+          state.edges = state.edges.filter(edge => edge.from !== node.id && edge.to !== node.id);
+          state.nodes = state.nodes.filter(item => item.id !== node.id);
+          flash('Nó removido. As arestas conectadas também foram apagadas.');
+        } else if (edge) {
+          state.edges = state.edges.filter(item => item.id !== edge.id);
+          flash('Aresta removida.');
+        }
+        if (textHit || node || edge) {
           setSelected(null);
+          pushHistory();
+          renderer.value?.draw();
         }
         return;
       }
 
-      if (state.mode === 'move') {
-        if (textHit) {
-          setSelected({ type: 'text', item: textHit.block });
+      const allowDrag = state.mode === 'move' || state.mode === 'select';
+
+      if (textHit) {
+        setSelected({ type: 'text', item: textHit.block });
+        if (allowDrag) {
           if (textHit.mode === 'resize') {
             startDrag({
               type: 'text',
@@ -352,11 +417,14 @@ createApp({
             });
           }
           event.preventDefault();
-          return;
         }
+        renderer.value?.draw();
+        return;
+      }
 
-        if (node) {
-          setSelected({ type: 'node', item: node });
+      if (node) {
+        setSelected({ type: 'node', item: node });
+        if (allowDrag) {
           startDrag({
             type: 'node',
             mode: 'move-node',
@@ -365,110 +433,160 @@ createApp({
             initial: { x: node.x, y: node.y },
           });
           event.preventDefault();
-        } else {
-          setSelected(null);
         }
+        renderer.value?.draw();
         return;
       }
 
-      if (state.mode === 'addText') {
-        const width = 240;
-        const height = 120;
-        const block = makeTextBlock(pointer.x - width / 2, pointer.y - height / 2, width, height);
-        const { width: viewWidth, height: viewHeight } = currentViewport();
-        block.x = Math.min(Math.max(block.x, 16), Math.max(16, viewWidth - width - 16));
-        block.y = Math.min(Math.max(block.y, 16), Math.max(16, viewHeight - height - 16));
-        state.textBlocks = [...state.textBlocks, block];
-        setSelected({ type: 'text', item: block });
-        state.mode = 'select';
-        pushHistory();
-        flash('Caixa de texto criada. Use duplo clique para editar o conteúdo.');
+      if (edge) {
+        setSelected({ type: 'edge', item: edge });
+        renderer.value?.draw();
         return;
       }
 
-      if (state.mode === 'addEdge') {
-        if (state.edgeStart && node && node.id !== state.edgeStart.id) {
-          const newEdge = makeEdge(state.edgeStart.id, node.id);
-          state.edges = [...state.edges, newEdge];
-          setSelected({ type: 'edge', item: newEdge });
-          state.edgeStart = null;
-          state.mode = 'select';
-          pushHistory();
-          flash('Aresta criada com sucesso.');
-        } else if (node) {
-          state.edgeStart = node;
-          flash('Agora clique no nó de destino para concluir.');
-        } else {
-          state.edgeStart = null;
-        }
-        return;
-      }
-
-      if (state.mode === 'delete') {
-        if (textHit) {
-          state.textBlocks = state.textBlocks.filter(block => block.id !== textHit.block.id);
-          flash('Caixa de texto removida.');
-        } else if (node) {
-          state.edges = state.edges.filter(edge => edge.from !== node.id && edge.to !== node.id);
-          state.nodes = state.nodes.filter(item => item.id !== node.id);
-          flash('Nó removido. As arestas conectadas também foram apagadas.');
-        } else if (edge) {
-          state.edges = state.edges.filter(item => item.id !== edge.id);
-          flash('Aresta removida.');
-        }
-        if (textHit || node || edge) {
-          setSelected(null);
-          pushHistory();
-        }
-      }
-    }
-
-    function onCanvasMouseMove(event) {
-      const context = state.dragContext;
-      if (!context) return;
-      const pointer = getPointerPosition(event);
-      let dx = pointer.x - context.pointerStart.x;
-      let dy = pointer.y - context.pointerStart.y;
-
-      if (event.shiftKey) {
-        if (!context.axisLock) {
-          context.axisLock = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
-        }
-      } else {
-        context.axisLock = null;
-      }
-
-      if (context.axisLock === 'x') {
-        dy = 0;
-      } else if (context.axisLock === 'y') {
-        dx = 0;
-      }
-
-      if (context.mode === 'move-node') {
-        context.item.x = context.initial.x + dx;
-        context.item.y = context.initial.y + dy;
-      } else if (context.mode === 'move-text') {
-        context.item.x = context.initial.x + dx;
-        context.item.y = context.initial.y + dy;
-      } else if (context.mode === 'resize-text') {
-        const nextWidth = Math.max(TEXT_BLOCK_CONSTRAINTS.minWidth, context.initial.width + dx);
-        const nextHeight = Math.max(TEXT_BLOCK_CONSTRAINTS.minHeight, context.initial.height + dy);
-        context.item.width = nextWidth;
-        context.item.height = nextHeight;
-      }
-
-      state.dragMoved = true;
-      event.preventDefault();
+      setSelected(null);
       renderer.value?.draw();
     }
 
-    function onCanvasMouseUp() {
-      if (!state.dragContext) return;
+    function updateHoverState(pointer) {
+      if (!renderer.value || !pointer) {
+        state.hoverNodeId = null;
+        state.hoverAnchor = null;
+        return;
+      }
+      const anchor = renderer.value.getAnchorAtPosition(pointer.x, pointer.y);
+      if (anchor) {
+        state.hoverNodeId = anchor.node.id;
+        state.hoverAnchor = anchor.anchor;
+        return;
+      }
+      const node = renderer.value.getNodeAtPosition(pointer.x, pointer.y);
+      if (node) {
+        state.hoverNodeId = node.id;
+        state.hoverAnchor = null;
+        return;
+      }
+      state.hoverNodeId = null;
+      state.hoverAnchor = null;
+    }
+
+    function onCanvasMouseMove(event) {
+      const pointer = getPointerPosition(event);
+      state.pointer = pointer;
+
+      if (state.edgeDraft) {
+        state.edgeDraft.pointer = pointer;
+        const anchorHit = renderer.value?.getAnchorAtPosition(pointer.x, pointer.y) || null;
+        const hoveredNode = renderer.value?.getNodeAtPosition(pointer.x, pointer.y) || null;
+        let target = null;
+        let hoverNodeId = state.edgeDraft.from.nodeId;
+        let hoverAnchor = state.edgeDraft.from.anchor;
+
+        if (anchorHit) {
+          target = {
+            nodeId: anchorHit.node.id,
+            anchor: anchorHit.anchor,
+            valid: anchorHit.node.id !== state.edgeDraft.from.nodeId,
+          };
+          hoverNodeId = anchorHit.node.id;
+          hoverAnchor = anchorHit.anchor;
+        } else if (hoveredNode) {
+          const suggested = determineAnchorForPointer(hoveredNode, pointer);
+          target = {
+            nodeId: hoveredNode.id,
+            anchor: suggested,
+            valid: hoveredNode.id !== state.edgeDraft.from.nodeId,
+          };
+          hoverNodeId = hoveredNode.id;
+          hoverAnchor = suggested;
+        } else {
+          target = null;
+        }
+
+        state.edgeDraft.target = target;
+        state.hoverNodeId = hoverNodeId;
+        state.hoverAnchor = hoverAnchor;
+        renderer.value?.draw();
+        return;
+      }
+
+      const context = state.dragContext;
+      if (context) {
+        let dx = pointer.x - context.pointerStart.x;
+        let dy = pointer.y - context.pointerStart.y;
+
+        if (event.shiftKey) {
+          if (!context.axisLock) {
+            context.axisLock = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+          }
+        } else {
+          context.axisLock = null;
+        }
+
+        if (context.axisLock === 'x') {
+          dy = 0;
+        } else if (context.axisLock === 'y') {
+          dx = 0;
+        }
+
+        if (context.mode === 'move-node') {
+          context.item.x = context.initial.x + dx;
+          context.item.y = context.initial.y + dy;
+        } else if (context.mode === 'move-text') {
+          context.item.x = context.initial.x + dx;
+          context.item.y = context.initial.y + dy;
+        } else if (context.mode === 'resize-text') {
+          const nextWidth = Math.max(TEXT_BLOCK_CONSTRAINTS.minWidth, context.initial.width + dx);
+          const nextHeight = Math.max(TEXT_BLOCK_CONSTRAINTS.minHeight, context.initial.height + dy);
+          context.item.width = nextWidth;
+          context.item.height = nextHeight;
+        }
+
+        state.dragMoved = true;
+        event.preventDefault();
+        renderer.value?.draw();
+        return;
+      }
+
+      updateHoverState(pointer);
+      renderer.value?.draw();
+    }
+
+    function onCanvasMouseUp(event) {
+      if (event) {
+        state.pointer = getPointerPosition(event);
+      }
+      if (state.edgeDraft) {
+        const draft = state.edgeDraft;
+        const target = draft.target;
+        if (target?.valid) {
+          const newEdge = makeEdge(draft.from.nodeId, target.nodeId);
+          newEdge.fromAnchor = draft.from.anchor;
+          newEdge.toAnchor = target.anchor;
+          state.edges = [...state.edges, newEdge];
+          setSelected({ type: 'edge', item: newEdge });
+          state.mode = 'select';
+          pushHistory();
+          flash('Aresta criada com sucesso.');
+        }
+        state.edgeDraft = null;
+        renderer.value?.draw();
+        updateHoverState(state.pointer);
+        return;
+      }
+
+      if (!state.dragContext) {
+        updateHoverState(state.pointer);
+        renderer.value?.draw();
+        return;
+      }
       if (state.dragMoved) {
         pushHistory();
       }
       state.dragContext = null;
       state.dragMoved = false;
+      renderer.value?.draw();
+      updateHoverState(state.pointer);
     }
 
     function onCanvasDblClick(event) {
@@ -602,10 +720,12 @@ createApp({
       state.edges = snap.edges.map(edge => ({ ...edge }));
       state.textBlocks = snap.textBlocks.map(block => ({ ...block }));
       state.selected = null;
-      state.edgeStart = null;
+      state.edgeDraft = null;
+      state.hoverNodeId = null;
+      state.hoverAnchor = null;
+      state.pointer = null;
       renderer.value?.draw();
     }
-
     function pushHistory() {
       const current = snapshot();
       history.past.push(current);

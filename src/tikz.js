@@ -64,7 +64,9 @@ export function generateTikzDocument(nodes, edges) {
       ? `to[${edge.shape}=${edge.bend || 30}]`
       : (edge.shape || '--');
     const labelSegment = edge.label ? ` node[midway, fill=white, inner sep=2pt]{${edge.label}}` : '';
-    body += `    \\draw[${styleParts.join(', ')}] (${edge.from}) ${path}${labelSegment} (${edge.to});\n`;
+    const fromRef = edge.fromAnchor ? `${edge.from}.${edge.fromAnchor}` : edge.from;
+    const toRef = edge.toAnchor ? `${edge.to}.${edge.toAnchor}` : edge.to;
+    body += `    \\draw[${styleParts.join(', ')}] (${fromRef}) ${path}${labelSegment} (${toRef});\n`;
   });
 
   body += '\\end{tikzpicture}\n';
