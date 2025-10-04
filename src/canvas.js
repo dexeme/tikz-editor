@@ -1,4 +1,6 @@
 import { distanceToSegment, getQuadraticControlPoint } from './utils/geometry.js';
+import { isCurvedShape, isOrthogonalShape, resolveBendShape } from './routingMaps.js';
+import { computeOrthogonalGeometry } from './geometry/orthogonal.js';
 
 const NODE_RADIUS = 32;
 const NODE_WIDTH = 112;
@@ -107,8 +109,16 @@ export function createCanvasRenderer(canvas, state) {
       drawArrowHead(geometry.startPoint, geometry.startAngle + Math.PI, edge);
     }
 
-    if (edge.label) {
+    if (edge.label?.text) {
       drawEdgeLabel(edge, geometry);
+    }
+
+    if (
+      geometry.elbow &&
+      state.selected?.type === 'edge' &&
+      state.selected?.item?.id === edge.id
+    ) {
+      drawElbowHandle(geometry.elbow);
     }
 
     ctx.restore();
@@ -116,7 +126,7 @@ export function createCanvasRenderer(canvas, state) {
 
   function drawArrowHead(point, angle, edge) {
     const size = 12;
-    const offset = edge.shape?.startsWith('bend') ? 6 : 0;
+    const offset = isCurvedShape(edge.shape) ? 6 : 0;
     const targetX = point.x - Math.cos(angle) * offset;
     const targetY = point.y - Math.sin(angle) * offset;
     ctx.save();
@@ -132,6 +142,19 @@ export function createCanvasRenderer(canvas, state) {
     ctx.restore();
   }
 
+  function drawElbowHandle(point) {
+    const size = 10;
+    ctx.save();
+    ctx.fillStyle = '#f8fafc';
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.rect(point.x - size / 2, point.y - size / 2, size, size);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawNodeBase(node) {
     ctx.save();
     const isSelected = state.selected?.type === 'node' && state.selected?.item?.id === node.id;
@@ -143,7 +166,7 @@ export function createCanvasRenderer(canvas, state) {
       if (isSelected) return '#38bdf8';
       if (isTarget) return targetInfo.valid ? '#22c55e' : '#ef4444';
       if (isOrigin) return '#38bdf8';
-      if (isHovered && state.mode === 'addEdge') return 'rgba(96, 165, 250, 0.9)';
+      if (isHovered && state.edgeDraft) return 'rgba(96, 165, 250, 0.9)';
       if (isHovered) return 'rgba(148, 163, 184, 0.85)';
       return 'rgba(148, 163, 184, 0.55)';
     })();
@@ -245,7 +268,11 @@ export function createCanvasRenderer(canvas, state) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
     const labelPoint = geometry.labelPoint;
-    ctx.fillText(edge.label, labelPoint.x, labelPoint.y - 8);
+    const label = edge.label;
+    const text = label?.text ?? '';
+    const offsetX = label?.offset?.[0] ?? 0;
+    const offsetY = label?.offset?.[1] ?? 0;
+    ctx.fillText(text, labelPoint.x + offsetX, labelPoint.y - 8 + offsetY);
     ctx.restore();
   }
 
@@ -337,8 +364,9 @@ export function createCanvasRenderer(canvas, state) {
     const startPoint = getAnchorPoint(from, edge.fromAnchor);
     const endPoint = getAnchorPoint(to, edge.toAnchor);
 
-    if (edge.shape?.startsWith('bend')) {
-      const control = getQuadraticControlPoint(startPoint, endPoint, edge.shape, Number(edge.bend) || 30);
+    if (isCurvedShape(edge.shape)) {
+      const bendShape = resolveBendShape(edge.shape) || 'bend left';
+      const control = getQuadraticControlPoint(startPoint, endPoint, bendShape, Number(edge.bend) || 30);
       const mid = getQuadraticPoint(startPoint, control, endPoint, 0.5);
       const endVec = { x: endPoint.x - control.x, y: endPoint.y - control.y };
       const startVec = { x: control.x - startPoint.x, y: control.y - startPoint.y };
@@ -353,50 +381,34 @@ export function createCanvasRenderer(canvas, state) {
       };
     }
 
-    let segments;
-    if (edge.shape === '|-') {
-      const mid = { x: endPoint.x, y: startPoint.y };
-      segments = [
-        { start: startPoint, end: mid },
-        { start: mid, end: endPoint },
-      ];
-    } else if (edge.shape === '-|') {
-      const mid = { x: startPoint.x, y: endPoint.y };
-      segments = [
-        { start: startPoint, end: mid },
-        { start: mid, end: endPoint },
-      ];
-    } else {
-      segments = [{ start: startPoint, end: endPoint }];
+    if (isOrthogonalShape(edge.shape)) {
+      const { segments, elbow, startAngle, endAngle, labelPoint } = computeOrthogonalGeometry(startPoint, endPoint, edge.shape);
+      return {
+        type: 'polyline',
+        segments,
+        elbow,
+        startPoint,
+        endPoint,
+        startAngle,
+        endAngle,
+        labelPoint,
+      };
     }
 
-    const totalLength = segments.reduce((sum, segment) => sum + Math.hypot(segment.end.x - segment.start.x, segment.end.y - segment.start.y), 0);
-    let accumulated = 0;
-    const halfway = totalLength / 2;
-    let labelPoint = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
-    for (const segment of segments) {
-      const segmentLength = Math.hypot(segment.end.x - segment.start.x, segment.end.y - segment.start.y);
-      if (accumulated + segmentLength >= halfway) {
-        const ratio = (halfway - accumulated) / segmentLength;
-        labelPoint = {
-          x: segment.start.x + (segment.end.x - segment.start.x) * ratio,
-          y: segment.start.y + (segment.end.y - segment.start.y) * ratio,
-        };
-        break;
-      }
-      accumulated += segmentLength;
-    }
-
-    const first = segments[0];
-    const last = segments[segments.length - 1];
+    const segments = [{ start: startPoint, end: endPoint }];
+    const startAngle = Math.atan2(endPoint.y - startPoint.y, endPoint.x - startPoint.x);
+    const labelPoint = {
+      x: startPoint.x + (endPoint.x - startPoint.x) / 2,
+      y: startPoint.y + (endPoint.y - startPoint.y) / 2,
+    };
 
     return {
       type: 'polyline',
       segments,
       startPoint,
       endPoint,
-      startAngle: Math.atan2(first.end.y - first.start.y, first.end.x - first.start.x),
-      endAngle: Math.atan2(last.end.y - last.start.y, last.end.x - last.start.x),
+      startAngle,
+      endAngle: startAngle,
       labelPoint,
     };
   }
@@ -465,22 +477,37 @@ export function createCanvasRenderer(canvas, state) {
       if (!from || !to) return false;
       const startPoint = getAnchorPoint(from, edge.fromAnchor);
       const endPoint = getAnchorPoint(to, edge.toAnchor);
-      if (edge.shape?.startsWith('bend')) {
-        const cp = getQuadraticControlPoint(startPoint, endPoint, edge.shape, Number(edge.bend) || 30);
+      if (isCurvedShape(edge.shape)) {
+        const bendShape = resolveBendShape(edge.shape) || 'bend left';
+        const cp = getQuadraticControlPoint(startPoint, endPoint, bendShape, Number(edge.bend) || 30);
         const dist = distanceToQuadratic({ x, y }, startPoint, cp, endPoint);
         return dist <= threshold;
       }
-      if (edge.shape === '|-' || edge.shape === '-|') {
-        const mid = edge.shape === '|-'
-          ? { x: endPoint.x, y: startPoint.y }
-          : { x: startPoint.x, y: endPoint.y };
-        return (
-          distanceToSegment({ x, y }, startPoint, mid) <= threshold ||
-          distanceToSegment({ x, y }, mid, endPoint) <= threshold
-        );
+      if (isOrthogonalShape(edge.shape)) {
+        const { segments } = computeOrthogonalGeometry(startPoint, endPoint, edge.shape);
+        return segments.some(segment => distanceToSegment({ x, y }, segment.start, segment.end) <= threshold);
       }
       return distanceToSegment({ x, y }, startPoint, endPoint) <= threshold;
     }) || null;
+  }
+
+  function getEdgeHandleAtPosition(x, y) {
+    const radius = 12;
+    for (let index = state.edges.length - 1; index >= 0; index -= 1) {
+      const edge = state.edges[index];
+      if (!isOrthogonalShape(edge.shape)) continue;
+      const from = state.nodes.find(node => node.id === edge.from);
+      const to = state.nodes.find(node => node.id === edge.to);
+      if (!from || !to) continue;
+      const startPoint = getAnchorPoint(from, edge.fromAnchor);
+      const endPoint = getAnchorPoint(to, edge.toAnchor);
+      const { elbow } = computeOrthogonalGeometry(startPoint, endPoint, edge.shape);
+      const distance = Math.hypot(elbow.x - x, elbow.y - y);
+      if (distance <= radius) {
+        return { edge, elbow };
+      }
+    }
+    return null;
   }
 
   function getAnchorAtPosition(x, y) {
@@ -544,6 +571,7 @@ export function createCanvasRenderer(canvas, state) {
       draw,
       getNodeAtPosition,
       getEdgeAtPosition,
+      getEdgeHandleAtPosition,
       getAnchorAtPosition,
       getTextBlockAtPosition,
       getViewport: () => ({ width: rendererState.width, height: rendererState.height }),

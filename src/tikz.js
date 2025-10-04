@@ -1,3 +1,5 @@
+import { mapPort, resolveBendShape, resolveOrthogonalTikz, isCurvedShape } from './routingMaps.js';
+
 const FONT_MAP = {
   12: '\\small',
   16: '',
@@ -60,12 +62,24 @@ export function generateTikzDocument(nodes, edges) {
     if (edge.style && edge.style !== 'solid') {
       styleParts.push(edge.style);
     }
-    const path = edge.shape?.startsWith('bend')
-      ? `to[${edge.shape}=${edge.bend || 30}]`
-      : (edge.shape || '--');
-    const labelSegment = edge.label ? ` node[midway, fill=white, inner sep=2pt]{${edge.label}}` : '';
-    const fromRef = edge.fromAnchor ? `${edge.from}.${edge.fromAnchor}` : edge.from;
-    const toRef = edge.toAnchor ? `${edge.to}.${edge.toAnchor}` : edge.to;
+    let path;
+    if (isCurvedShape(edge.shape)) {
+      const tikzBend = resolveBendShape(edge.shape) || 'bend left';
+      path = `to[${tikzBend}=${edge.bend || 30}]`;
+    } else if (resolveOrthogonalTikz(edge.shape)) {
+      path = resolveOrthogonalTikz(edge.shape);
+    } else {
+      path = '--';
+    }
+    const labelSegment = edge.label?.text
+      ? ` node[midway, fill=white, inner sep=2pt]{${edge.label.text}}`
+      : '';
+    const fromAnchor = edge.fromAnchor || edge.source?.portId;
+    const toAnchor = edge.toAnchor || edge.target?.portId;
+    const fromNode = edge.from || edge.source?.nodeId;
+    const toNode = edge.to || edge.target?.nodeId;
+    const fromRef = fromAnchor ? `${fromNode}.${mapPort[fromAnchor] || fromAnchor}` : fromNode;
+    const toRef = toAnchor ? `${toNode}.${mapPort[toAnchor] || toAnchor}` : toNode;
     body += `    \\draw[${styleParts.join(', ')}] (${fromRef}) ${path}${labelSegment} (${toRef});\n`;
   });
 

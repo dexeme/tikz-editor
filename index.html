@@ -153,14 +153,14 @@
               <label>
                 Trajeto
                 <select v-model="selected.item.shape" @change="onOptionChange">
-                  <option value="--">Reta</option>
-                  <option value="|-">90° (primeiro horizontal)</option>
-                  <option value="-|">90° (primeiro vertical)</option>
-                  <option value="bend left">Curva para a esquerda</option>
-                  <option value="bend right">Curva para a direita</option>
+                  <option value="straight">Reta</option>
+                  <option value="90-vertical">90° (primeiro vertical)</option>
+                  <option value="90-horizontal">90° (primeiro horizontal)</option>
+                  <option value="curva-esquerda">Curva para a esquerda</option>
+                  <option value="curva-direita">Curva para a direita</option>
                 </select>
               </label>
-              <label v-if="selected.item.shape?.startsWith('bend')">
+              <label v-if="selected.item.shape === 'curva-esquerda' || selected.item.shape === 'curva-direita'">
                 Curvatura
                 <input type="range" min="10" max="60" v-model="selected.item.bend" @input="invalidateTikz" @change="commitHistory">
               </label>
@@ -173,6 +173,15 @@
             <header><h2>Caixa de Texto</h2></header>
             <div v-if="selected?.type === 'text'" class="panel-content">
               <p>Use duplo clique sobre a caixa para editar seu conteúdo.</p>
+              <label>
+                Conteúdo
+                <textarea
+                  rows="4"
+                  v-model="selected.item.text"
+                  @input="invalidateTikz"
+                  @change="commitHistory"
+                ></textarea>
+              </label>
               <label>
                 Largura (px)
                 <input
@@ -226,6 +235,18 @@
         <section class="panel code-panel">
           <header><h2>Código TikZ</h2></header>
           <textarea readonly :value="tikzCode" aria-label="Código gerado"></textarea>
+          <div class="tikz-preview-wrapper">
+            <h3>Pré-visualização</h3>
+            <div v-if="tikzPreviewDoc" class="tikz-preview-frame">
+              <iframe
+                title="Pré-visualização do TikZ"
+                class="tikz-preview-iframe"
+                sandbox="allow-scripts"
+                :srcdoc="tikzPreviewDoc"
+              ></iframe>
+            </div>
+            <p v-else class="tikz-preview-placeholder">Pré-visualização disponível após gerar TikZ.</p>
+          </div>
         </section>
       </aside>
     </main>

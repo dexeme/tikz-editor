@@ -38,9 +38,30 @@ function makeEdge(from, to) {
     to,
     style: 'solid',
     direction: '->',
-    shape: '--',
+    shape: 'straight',
     bend: 30,
+    label: null,
   };
+}
+
+function normalizeEdge(edge) {
+  const legacyShapeMap = {
+    '--': 'straight',
+    '|-': '90-horizontal',
+    '-|': '90-vertical',
+    'bend left': 'curva-esquerda',
+    'bend right': 'curva-direita',
+  };
+  if (legacyShapeMap[edge.shape]) {
+    edge.shape = legacyShapeMap[edge.shape];
+  }
+  if (!edge.shape) {
+    edge.shape = 'straight';
+  }
+  if (typeof edge.label === 'string') {
+    edge.label = edge.label ? { text: edge.label, position: 'auto' } : null;
+  }
+  return edge;
 }
 
 function makeTextBlock(x, y, width, height) {
@@ -87,7 +108,6 @@ createApp({
 
     const tools = [
       { mode: 'select', label: 'Selecionar', icon: '🖱️', accent: 'purple' },
-      { mode: 'addEdge', label: 'Nova aresta', icon: '🪢', accent: 'green' },
       { mode: 'addText', label: 'Caixa de texto', icon: '📝', accent: 'cyan' },
       { mode: 'move', label: 'Mover', icon: '✋', accent: 'amber' },
       { mode: 'delete', label: 'Remover', icon: '🗑️', accent: 'red' },
@@ -101,6 +121,16 @@ createApp({
     const renderer = ref(null);
     const feedback = ref('');
     const tikzCode = ref('');
+    const tikzPreviewDoc = computed(() => {
+      const code = tikzCode.value;
+      if (!code) return '';
+      const match = code.match(/\\begin\{tikzpicture\}([\s\S]*?)\\end\{tikzpicture\}/);
+      if (!match) return '';
+      const content = match[1].trim();
+      if (!content) return '';
+      const sanitized = content.replace(/<\/script>/gi, '<\\/script>');
+      return `<!DOCTYPE html>\n<html lang="pt-BR">\n<head>\n  <meta charset="UTF-8" />\n  <style>body{margin:0;padding:8px;background:transparent;color:#0f172a;font-family:Inter,system-ui,sans-serif;}figure{margin:0;}svg{max-width:100%;height:auto;}</style>\n  <script src="https://tikzjax.com/v1/tikzjax.js"></script>\n</head>\n<body>\n<script type="text/tikz">\\begin{tikzpicture}\n${sanitized}\n\\end{tikzpicture}</script>\n</body>\n</html>`;
+    });
     const showNodeMenu = ref(false);
     const inlineEditor = reactive({
       visible: false,
@@ -139,12 +169,8 @@ createApp({
     const mode = computed(() => state.mode);
     const selected = computed(() => state.selected);
 
-const defaultStatus = computed(() => {
+    const defaultStatus = computed(() => {
       switch (state.mode) {
-        case 'addEdge':
-          return state.edgeDraft
-            ? 'Solte sobre outro ponto de conexão para concluir a aresta.'
-            : 'Clique em um ponto de conexão para iniciar uma nova aresta.';
         case 'addText':
           return 'Clique no canvas para posicionar uma nova caixa de texto.';
         case 'move':
@@ -152,19 +178,14 @@ const defaultStatus = computed(() => {
         case 'delete':
           return 'Clique em elementos para removê-los do diagrama.';
         default:
-          return 'Selecione elementos ou use a barra de ferramentas para criar novos componentes.';
+          return 'Arraste conectores para criar arestas ou mova elementos livremente.';
       }
     });
 
     const statusMessage = computed(() => feedback.value || defaultStatus.value);
 
     const currentHint = computed(() => {
-      if (state.mode === 'addEdge' && state.edgeDraft) {
-        return 'ligar a aresta ao nó de destino';
-      }
       switch (state.mode) {
-        case 'addEdge':
-          return 'arrastar a partir de um conector visível';
         case 'addText':
           return 'inserir uma caixa de texto livre';
         case 'move':
@@ -172,7 +193,9 @@ const defaultStatus = computed(() => {
         case 'delete':
           return 'remover elementos indesejados';
         default:
-          return 'selecionar elementos ou arrastar nós';
+          return state.edgeDraft
+            ? 'ligar a aresta ao nó de destino'
+            : 'selecionar elementos ou arrastar conectores para criar arestas';
       }
     });
 
@@ -217,12 +240,10 @@ const defaultStatus = computed(() => {
 
     function changeMode(newMode) {
       state.mode = newMode;
-      if (newMode !== 'addEdge') {
-        state.edgeDraft = null;
-        state.hoverNodeId = null;
-        state.hoverAnchor = null;
-        renderer.value?.draw();
-      }
+      state.edgeDraft = null;
+      state.hoverNodeId = null;
+      state.hoverAnchor = null;
+      renderer.value?.draw();
       showNodeMenu.value = false;
       flash(defaultStatus.value);
     }
@@ -332,7 +353,24 @@ const defaultStatus = computed(() => {
       }
       closeNodeMenu();
 
-            if (state.mode === 'addText') {
+      const canStartEdgeFromAnchor =
+        !!anchorHit && state.mode !== 'addText' && state.mode !== 'delete';
+
+      if (canStartEdgeFromAnchor) {
+        const anchor = anchorHit.anchor;
+        state.edgeDraft = {
+          from: { nodeId: anchorHit.node.id, anchor },
+          pointer,
+          target: null,
+        };
+        state.hoverNodeId = anchorHit.node.id;
+        state.hoverAnchor = anchor;
+        renderer.value?.draw();
+        event.preventDefault();
+        return;
+      }
+
+      if (state.mode === 'addText') {
         const width = 240;
         const height = 120;
         const block = makeTextBlock(pointer.x - width / 2, pointer.y - height / 2, width, height);
@@ -345,26 +383,6 @@ const defaultStatus = computed(() => {
         pushHistory();
         flash('Caixa de texto criada. Use duplo clique para editar o conteúdo.');
         renderer.value?.draw();
-        return;
-      }
-
-      if (state.mode === 'addEdge') {
-        if (node) {
-          const anchor = anchorHit?.anchor || determineAnchorForPointer(node, pointer);
-          state.edgeDraft = {
-            from: { nodeId: node.id, anchor },
-            pointer,
-            target: null,
-          };
-          state.hoverNodeId = node.id;
-          state.hoverAnchor = anchor;
-        } else {
-          state.edgeDraft = null;
-          state.hoverNodeId = null;
-          state.hoverAnchor = null;
-        }
-        renderer.value?.draw();
-        event.preventDefault();
         return;
       }
 
@@ -627,7 +645,7 @@ const defaultStatus = computed(() => {
         }
       }
 
-      inlineEditor.value = edge.label || '';
+      inlineEditor.value = edge.label?.text || '';
       inlineEditor.width = 220;
       inlineEditor.height = 110;
       inlineEditor.type = 'edge';
@@ -676,8 +694,11 @@ const defaultStatus = computed(() => {
       }
       if (inlineEditor.type === 'edge') {
         const trimmed = inlineEditor.value.trim();
-        if (inlineEditor.target.label !== trimmed) {
-          inlineEditor.target.label = trimmed;
+        const target = inlineEditor.target;
+        const currentText = target.label?.text || '';
+        if (currentText !== trimmed) {
+          target.label = target.label || { text: '', position: 'auto' };
+          target.label.text = trimmed;
           pushHistory();
         }
       } else if (inlineEditor.type === 'text') {
@@ -710,14 +731,14 @@ const defaultStatus = computed(() => {
     function snapshot() {
       return {
         nodes: state.nodes.map(node => ({ ...node })),
-        edges: state.edges.map(edge => ({ ...edge })),
+        edges: state.edges.map(edge => normalizeEdge({ ...edge })),
         textBlocks: state.textBlocks.map(block => ({ ...block })),
       };
     }
 
     function applySnapshot(snap) {
       state.nodes = snap.nodes.map(node => ({ ...node }));
-      state.edges = snap.edges.map(edge => ({ ...edge }));
+      state.edges = snap.edges.map(edge => normalizeEdge({ ...edge }));
       state.textBlocks = snap.textBlocks.map(block => ({ ...block }));
       state.selected = null;
       state.edgeDraft = null;
@@ -854,6 +875,7 @@ const defaultStatus = computed(() => {
       currentHint,
       canReset,
       tikzCode,
+      tikzPreviewDoc,
       canvasRef,
       canvasWrapperRef,
       nodeMenuButtonRef,
