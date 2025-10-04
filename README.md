@@ -25,7 +25,7 @@ Use `Ctrl+C` para encerrar e `docker compose down` para remover os containers.
 
 ## Desenvolvimento sem Docker
 
-Caso já tenha o TeX Live instalado localmente:
+Caso ja tenha o TeX Live instalado localmente:
 
 ```bash
 npm install
@@ -33,6 +33,9 @@ npm run dev
 ```
 
 O script `dev` executa simultaneamente o backend (`http://localhost:3001`) e o frontend (`http://localhost:5173`).
+
+> [!TIP]
+> Se voce rodou o projeto em containers antes de executar `npm install` localmente, e possivel que a pasta `node_modules/` tenha sido criada pelo usuario `root` e o npm apresente erros `EACCES`. Nesse caso remova a pasta (`sudo rm -rf node_modules`) ou ajuste as permissoes com `sudo chown -R "$USER":"$USER" node_modules` antes de rodar `npm install`.
 
 ## Executando o build do frontend
 
