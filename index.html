@@ -1,73 +1,147 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gerador de TikZ Avançado</title>
-    <!-- Tailwind CSS for rapid UI development -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Custom Styles -->
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editor TikZ com Vue</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles/main.css">
 </head>
-<body class="bg-gray-900 text-gray-200 flex flex-col h-screen overflow-hidden">
-
-    <header class="bg-gray-800 shadow-md p-4 z-10">
-        <h1 class="text-xl font-bold text-center text-white">Editor Gráfico para TikZ</h1>
+<body>
+  <div id="app" v-cloak>
+    <header class="app-header">
+      <div>
+        <h1>Editor Interativo de Grafos TikZ</h1>
+        <p class="subtitle">Construa diagramas com mais rapidez usando o poder do Vue.</p>
+      </div>
+      <div class="header-actions">
+        <button class="ghost" @click="resetGraph" :disabled="!canReset">Reiniciar</button>
+        <button class="primary" @click="copyToClipboard" :disabled="!tikzCode">Copiar TikZ</button>
+      </div>
     </header>
 
-    <div class="flex flex-1 flex-col md:flex-row overflow-hidden">
-        
-        <div class="w-full md:w-3/5 flex flex-col p-4 space-y-4">
-            <!-- Controls -->
-            <div class="bg-gray-800 p-4 rounded-lg shadow-lg space-y-4">
-                <!-- Main Tools -->
-                <div class="flex flex-wrap items-center justify-center gap-2">
-                    <button id="selectBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-md transition-colors">Selecionar</button>
-                    <button id="addNodeBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md transition-colors">Adicionar Nó</button>
-                    <button id="addEdgeBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-md transition-colors">Adicionar Aresta</button>
-                    <button id="moveBtn" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-md transition-colors">Mover</button>
-                    <button id="deleteBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-md transition-colors disabled:opacity-50" disabled>Deletar</button>
-                    <button id="clearBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-md transition-colors">Limpar</button>
-                </div>
-                <div id="status" class="w-full text-center text-sm text-gray-400 h-5">Selecione uma ferramenta para começar.</div>
-
-                <!-- Node Properties Panel -->
-                <div id="node-controls" class="control-panel flex-wrap items-center justify-center gap-4 p-3 bg-gray-700/50 rounded-lg">
-                    <div class="flex flex-col"><label for="nodeLabel" class="text-xs mb-1">Texto</label><input type="text" id="nodeLabel" class="bg-gray-700 text-sm p-2 rounded w-24"></div>
-                    <div class="flex flex-col"><label for="nodeColor" class="text-xs mb-1">Cor</label><input type="color" id="nodeColor" value="#d1d5db" class="bg-gray-700 h-9 w-12 rounded"></div>
-                    <div class="flex flex-col"><label for="nodeShape" class="text-xs mb-1">Forma</label><select id="nodeShape" class="bg-gray-700 text-sm p-2 rounded w-24"><option value="circle">Círculo</option><option value="rectangle">Retângulo</option></select></div>
-                    <div class="flex flex-col"><label for="fontSize" class="text-xs mb-1">Fonte</label><select id="fontSize" class="bg-gray-700 text-sm p-2 rounded w-20"><option value="12">Pequena</option><option value="16">Normal</option><option value="20">Grande</option></select></div>
-                </div>
-
-                <!-- Edge Properties Panel -->
-                <div id="edge-controls" class="control-panel flex-wrap items-center justify-center gap-4 p-3 bg-gray-700/50 rounded-lg">
-                    <div class="flex flex-col"><label for="edgeStyle" class="text-xs mb-1">Estilo</label><select id="edgeStyle" class="bg-gray-700 text-sm p-2 rounded"><option value="solid">Sólida</option><option value="dashed">Tracejada</option><option value="dotted">Pontilhada</option></select></div>
-                    <div class="flex flex-col"><label for="edgeDir" class="text-xs mb-1">Direção</label><select id="edgeDir" class="bg-gray-700 text-sm p-2 rounded"><option value="->">-></option><option value="<->"><-></option><option value="-">-</option></select></div>
-                    <div class="flex flex-col"><label for="edgeShape" class="text-xs mb-1">Forma</label><select id="edgeShape" class="bg-gray-700 text-sm p-2 rounded"><option value="--">Reta</option><option value="|-">|-</option><option value="-|">-|</option><option value="bend left">Curva ( Esq )</option><option value="bend right">Curva ( Dir )</option></select></div>
-                    <div class="flex flex-col"><label for="edgeBend" class="text-xs mb-1">Curvatura</label><input type="range" id="edgeBend" min="10" max="60" value="30" class="w-24"></div>
-                </div>
-            </div>
-            
-            <div class="flex-1 bg-gray-800 rounded-lg shadow-lg p-2 canvas-container">
-                 <canvas id="tikzCanvas" class="bg-white rounded-md w-full h-full"></canvas>
-            </div>
+    <main class="app-body">
+      <section class="workspace">
+        <div class="toolbar" role="radiogroup" aria-label="Ferramentas de edição">
+          <button
+            v-for="tool in tools"
+            :key="tool.mode"
+            type="button"
+            :aria-pressed="mode === tool.mode"
+            :class="['tool-btn', mode === tool.mode ? 'active' : '', tool.accent]"
+            @click="changeMode(tool.mode)"
+          >
+            <span class="tool-icon">{{ tool.icon }}</span>
+            <span class="tool-label">{{ tool.label }}</span>
+          </button>
         </div>
 
-        <div class="w-full md:w-2/5 flex flex-col p-4 space-y-4">
-            <div class="bg-gray-800 p-4 rounded-lg shadow-lg flex-1 flex flex-col">
-                <div class="flex justify-between items-center mb-2">
-                    <h2 class="text-lg font-semibold text-white">Código TikZ Gerado</h2>
-                    <button id="copyBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-1 px-3 text-sm rounded-md transition-colors">Copiar</button>
-                </div>
-                <textarea id="tikzOutput" readonly class="flex-1 w-full bg-gray-900 text-green-400 font-mono p-4 rounded-md border border-gray-700 resize-none focus:outline-none"></textarea>
-            </div>
+        <div class="canvas-wrapper">
+          <canvas
+            ref="canvasRef"
+            width="1280"
+            height="720"
+            @mousedown="onCanvasMouseDown"
+            @mousemove="onCanvasMouseMove"
+            @mouseup="onCanvasMouseUp"
+            @mouseleave="onCanvasMouseUp"
+          ></canvas>
+          <p class="canvas-hint">Clique no canvas para {{ currentHint }}</p>
         </div>
-    </div>
 
-    <!-- Main Application Script -->
-    <script src="app.js" type="module"></script>
+        <div class="panel-grid">
+          <section class="panel">
+            <header><h2>Detalhes do Nó</h2></header>
+            <div v-if="selected?.type === 'node'" class="panel-content">
+              <label>
+                Texto
+                <input type="text" v-model="selected.item.label" @input="invalidateTikz">
+              </label>
+              <label>
+                Cor de preenchimento
+                <input type="color" v-model="selected.item.color" @input="invalidateTikz">
+              </label>
+              <label>
+                Forma
+                <select v-model="selected.item.shape" @change="invalidateTikz">
+                  <option value="circle">Círculo</option>
+                  <option value="rectangle">Retângulo</option>
+                </select>
+              </label>
+              <label>
+                Tamanho da fonte
+                <select v-model="selected.item.fontSize" @change="invalidateTikz">
+                  <option value="12">Pequena</option>
+                  <option value="16">Média</option>
+                  <option value="20">Grande</option>
+                </select>
+              </label>
+              <button class="ghost" @click="removeSelected">Remover Nó</button>
+            </div>
+            <div v-else class="empty-state">Selecione um nó para editar seus detalhes.</div>
+          </section>
+
+          <section class="panel">
+            <header><h2>Detalhes da Aresta</h2></header>
+            <div v-if="selected?.type === 'edge'" class="panel-content">
+              <label>
+                Estilo de linha
+                <select v-model="selected.item.style" @change="invalidateTikz">
+                  <option value="solid">Sólida</option>
+                  <option value="dashed">Tracejada</option>
+                  <option value="dotted">Pontilhada</option>
+                </select>
+              </label>
+              <label>
+                Direção
+                <select v-model="selected.item.direction" @change="invalidateTikz">
+                  <option value="->">-&gt;</option>
+                  <option value="<->">&lt;-&gt;</option>
+                  <option value="-">-</option>
+                </select>
+              </label>
+              <label>
+                Trajeto
+                <select v-model="selected.item.shape" @change="invalidateTikz">
+                  <option value="--">Reta</option>
+                  <option value="|-">90° (primeiro horizontal)</option>
+                  <option value="-|">90° (primeiro vertical)</option>
+                  <option value="bend left">Curva para a esquerda</option>
+                  <option value="bend right">Curva para a direita</option>
+                </select>
+              </label>
+              <label v-if="selected.item.shape?.startsWith('bend')">
+                Curvatura
+                <input type="range" min="10" max="60" v-model="selected.item.bend" @input="invalidateTikz">
+              </label>
+              <button class="ghost" @click="removeSelected">Remover Aresta</button>
+            </div>
+            <div v-else class="empty-state">Selecione uma aresta para ajustar suas opções.</div>
+          </section>
+        </div>
+      </section>
+
+      <aside class="sidebar">
+        <section class="panel">
+          <header><h2>Status</h2></header>
+          <div class="panel-content">
+            <p>{{ statusMessage }}</p>
+            <ul class="tips">
+              <li>Use CTRL/CMD + Clique para selecionar múltiplos itens (em breve).</li>
+              <li>Arraste nós utilizando a ferramenta <strong>Mover</strong>.</li>
+            </ul>
+          </div>
+        </section>
+        <section class="panel code-panel">
+          <header><h2>Código TikZ</h2></header>
+          <textarea readonly :value="tikzCode" aria-label="Código gerado"></textarea>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <script type="module" src="main.js"></script>
 </body>
 </html>
-
