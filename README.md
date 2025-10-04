@@ -1,48 +1,70 @@
-# Editor TikZ (Protótipo Vite + React)
+# Base TikZ com React e Docker
 
-Protótipo web de um editor TikZ com sincronização bidirecional entre o código fonte e um formulário estruturado para nós e arestas. O preview utiliza [TikZJax](https://tikzjax.com) diretamente no navegador.
+Projeto base para editar código TikZ no navegador e renderizar o resultado via LaTeX/TeX Live dentro de um backend Node.js. O ambiente completo roda em Docker e expõe uma interface com editor (esquerda) e visualização SVG (direita).
+
+## Visão geral
+
+- **Frontend:** React + Vite, textarea simples com atualização automática do preview.
+- **Backend:** Express, compila TikZ com `latex` + `dvisvgm` a partir do TeX Live.
+- **Container:** imagem Node.js com TeX Live completo instalada via APT.
 
 ## Pré-requisitos
 
-- Node.js 18 ou superior
-- npm (instalado junto com o Node)
+- Docker
+- Docker Compose (v2 ou superior)
 
-## Como rodar
+## Como rodar com Docker
+
+```bash
+docker compose up --build
+```
+
+Após o build inicial, acesse o frontend em [http://localhost:5173](http://localhost:5173). O servidor de renderização roda em [http://localhost:3001](http://localhost:3001) e é utilizado automaticamente pelo frontend via proxy do Vite.
+
+Use `Ctrl+C` para encerrar e `docker compose down` para remover os containers.
+
+## Desenvolvimento sem Docker
+
+Caso já tenha o TeX Live instalado localmente:
 
 ```bash
 npm install
 npm run dev
 ```
 
-O Vite exibirá no terminal o endereço local (por padrão `http://localhost:5173`).
+O script `dev` executa simultaneamente o backend (`http://localhost:3001`) e o frontend (`http://localhost:5173`).
 
-## Subconjunto suportado pelo parser
+## Executando o build do frontend
 
-O parser implementado é propositalmente restrito e aceita apenas os comandos abaixo dentro de `\begin{tikzpicture} ... \end{tikzpicture}`:
+```bash
+npm run build
+```
 
-- Nós no formato `\node (id) at (x,y) {Rótulo};` com suporte opcional a `[...]` para preservar opções originais.
-- Arestas direcionais no formato `\draw[->] (idOrigem) -- (idDestino);` (opções adicionais podem ser mantidas desde que o `->` esteja presente).
-- Comentários iniciados por `%` são ignorados.
+Gera os arquivos estáticos em `dist/` (sem empacotar o backend).
 
-Qualquer outro comando dentro do ambiente resulta em mensagem de erro amigável.
+## Estrutura de pastas
 
-## Fluxo de uso
+```
+.
+├── Dockerfile
+├── docker-compose.yml
+├── package.json
+├── server/
+│   └── index.js
+├── src/
+│   ├── App.css
+│   ├── App.jsx
+│   ├── index.css
+│   └── main.jsx
+└── vite.config.js
+```
 
-1. O exemplo inicial já renderiza um fluxograma linear simples.
-2. Alterações manuais no código exigem clique em **Parsear & Renderizar** para atualizar o formulário e o preview.
-3. Alterações via formulário (nós/arestas) atualizam automaticamente o código e o preview.
-4. O TikZJax é recarregado a cada renderização para garantir consistência do SVG.
+## Fluxo do renderizador
 
-## Limitações conhecidas
+1. O frontend envia o código TikZ para `POST /api/render`.
+2. O backend cria um diretório temporário, grava um documento LaTeX mínimo e roda:
+   - `latex -interaction=nonstopmode -halt-on-error document.tex`
+   - `dvisvgm --no-fonts --exact document.dvi`
+3. O SVG gerado é devolvido ao cliente.
 
-- Não há suporte para bibliotecas adicionais (`\usetikzlibrary{...}`) ou comandos fora do subconjunto descrito.
-- Labels com chaves internas (`{` `}`) não são tratados — apenas texto plano simples.
-- O protótipo não realiza validação cruzada de arestas apontando para nós inexistentes durante a edição manual do código (o parser assumirá que os IDs existem).
-- O recarregamento do TikZJax em cada renderização pode ser custoso para diagramas muito grandes, mas garante previsibilidade neste MVP.
-
-## Possíveis extensões
-
-- Implementar arraste direto dos nós no SVG com atualização das coordenadas.
-- Acrescentar suporte a mais estilos de arestas (curvas, múltiplas setas, estilos com rótulos intermediários).
-- Habilitar importação/exportação em SVG ou PNG de forma direta.
-- Persistir automaticamente o último código editado no `localStorage`.
+Mensagens de erro do LaTeX são retornadas ao usuário para facilitar o debug.
