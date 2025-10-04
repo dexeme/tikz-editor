@@ -17,6 +17,8 @@
         <p class="subtitle">Construa diagramas com mais rapidez usando o poder do Vue.</p>
       </div>
       <div class="header-actions">
+        <button class="ghost" @click="undo" :disabled="!canUndo">Desfazer</button>
+        <button class="ghost" @click="redo" :disabled="!canRedo">Refazer</button>
         <button class="ghost" @click="resetGraph" :disabled="!canReset">Reiniciar</button>
         <button class="primary" @click="copyToClipboard" :disabled="!tikzCode">Copiar TikZ</button>
       </div>
@@ -25,6 +27,28 @@
     <main class="app-body">
       <section class="workspace">
         <div class="toolbar" role="radiogroup" aria-label="Ferramentas de edição">
+          <div class="tool-with-menu">
+            <button
+              ref="nodeMenuButtonRef"
+              type="button"
+              :aria-expanded="showNodeMenu"
+              :class="['tool-btn', showNodeMenu ? 'active' : '', 'blue']"
+              @click="toggleNodeMenu"
+            >
+              <span class="tool-icon">➕</span>
+              <span class="tool-label">Novo nó</span>
+            </button>
+            <div v-if="showNodeMenu" ref="nodeMenuRef" class="node-menu">
+              <button
+                v-for="shape in availableShapes"
+                :key="shape.id"
+                type="button"
+                @click="createNodeFromMenu(shape.id)"
+              >
+                {{ shape.label }}
+              </button>
+            </div>
+          </div>
           <button
             v-for="tool in tools"
             :key="tool.mode"
@@ -38,7 +62,7 @@
           </button>
         </div>
 
-        <div class="canvas-wrapper">
+        <div class="canvas-wrapper" ref="canvasWrapperRef">
           <canvas
             ref="canvasRef"
             width="1280"
@@ -47,7 +71,28 @@
             @mousemove="onCanvasMouseMove"
             @mouseup="onCanvasMouseUp"
             @mouseleave="onCanvasMouseUp"
+            @dblclick="onCanvasDblClick"
           ></canvas>
+          <div
+            v-if="inlineEditor.visible"
+            class="inline-editor"
+            :style="{
+              width: inlineEditor.width + 'px',
+              height: inlineEditor.height + 'px',
+              left: inlineEditor.left + 'px',
+              top: inlineEditor.top + 'px',
+            }"
+          >
+            <textarea
+              ref="inlineEditorRef"
+              v-model="inlineEditor.value"
+              @keydown="handleEditorKeydown"
+            ></textarea>
+            <div class="inline-editor-actions">
+              <button type="button" @mousedown.prevent @click="confirmInlineEditor">Salvar</button>
+              <button type="button" @mousedown.prevent @click="closeInlineEditor">Cancelar</button>
+            </div>
+          </div>
           <p class="canvas-hint">Clique no canvas para {{ currentHint }}</p>
         </div>
 
@@ -57,22 +102,25 @@
             <div v-if="selected?.type === 'node'" class="panel-content">
               <label>
                 Texto
-                <input type="text" v-model="selected.item.label" @input="invalidateTikz">
+                <input type="text" v-model="selected.item.label" @input="invalidateTikz" @change="commitHistory">
               </label>
               <label>
                 Cor de preenchimento
-                <input type="color" v-model="selected.item.color" @input="invalidateTikz">
+                <input type="color" v-model="selected.item.color" @input="invalidateTikz" @change="commitHistory">
               </label>
               <label>
                 Forma
-                <select v-model="selected.item.shape" @change="invalidateTikz">
+                <select v-model="selected.item.shape" @change="onOptionChange">
                   <option value="circle">Círculo</option>
                   <option value="rectangle">Retângulo</option>
+                  <option value="decision">Nó de decisão</option>
+                  <option value="diamond">Losango</option>
+                  <option value="triangle">Triângulo</option>
                 </select>
               </label>
               <label>
                 Tamanho da fonte
-                <select v-model="selected.item.fontSize" @change="invalidateTikz">
+                <select v-model="selected.item.fontSize" @change="onOptionChange">
                   <option value="12">Pequena</option>
                   <option value="16">Média</option>
                   <option value="20">Grande</option>
@@ -88,7 +136,7 @@
             <div v-if="selected?.type === 'edge'" class="panel-content">
               <label>
                 Estilo de linha
-                <select v-model="selected.item.style" @change="invalidateTikz">
+                <select v-model="selected.item.style" @change="onOptionChange">
                   <option value="solid">Sólida</option>
                   <option value="dashed">Tracejada</option>
                   <option value="dotted">Pontilhada</option>
@@ -96,7 +144,7 @@
               </label>
               <label>
                 Direção
-                <select v-model="selected.item.direction" @change="invalidateTikz">
+                <select v-model="selected.item.direction" @change="onOptionChange">
                   <option value="->">-&gt;</option>
                   <option value="<->">&lt;-&gt;</option>
                   <option value="-">-</option>
@@ -104,7 +152,7 @@
               </label>
               <label>
                 Trajeto
-                <select v-model="selected.item.shape" @change="invalidateTikz">
+                <select v-model="selected.item.shape" @change="onOptionChange">
                   <option value="--">Reta</option>
                   <option value="|-">90° (primeiro horizontal)</option>
                   <option value="-|">90° (primeiro vertical)</option>
@@ -114,11 +162,52 @@
               </label>
               <label v-if="selected.item.shape?.startsWith('bend')">
                 Curvatura
-                <input type="range" min="10" max="60" v-model="selected.item.bend" @input="invalidateTikz">
+                <input type="range" min="10" max="60" v-model="selected.item.bend" @input="invalidateTikz" @change="commitHistory">
               </label>
               <button class="ghost" @click="removeSelected">Remover Aresta</button>
             </div>
             <div v-else class="empty-state">Selecione uma aresta para ajustar suas opções.</div>
+          </section>
+
+          <section class="panel">
+            <header><h2>Caixa de Texto</h2></header>
+            <div v-if="selected?.type === 'text'" class="panel-content">
+              <p>Use duplo clique sobre a caixa para editar seu conteúdo.</p>
+              <label>
+                Largura (px)
+                <input
+                  type="number"
+                  min="96"
+                  v-model.number="selected.item.width"
+                  @input="invalidateTikz"
+                  @change="commitHistory"
+                >
+              </label>
+              <label>
+                Altura (px)
+                <input
+                  type="number"
+                  min="60"
+                  v-model.number="selected.item.height"
+                  @input="invalidateTikz"
+                  @change="commitHistory"
+                >
+              </label>
+              <label>
+                Tamanho da fonte
+                <input
+                  type="number"
+                  min="12"
+                  max="28"
+                  v-model.number="selected.item.fontSize"
+                  @input="invalidateTikz"
+                  @change="commitHistory"
+                >
+              </label>
+              <button class="ghost" @click="openTextBlockEditor(selected.item)">Editar texto</button>
+              <button class="ghost" @click="removeSelected">Remover Caixa de Texto</button>
+            </div>
+            <div v-else class="empty-state">Selecione uma caixa de texto para ajustar seu formato.</div>
           </section>
         </div>
       </section>

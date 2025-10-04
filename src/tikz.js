@@ -6,9 +6,18 @@ const FONT_MAP = {
 
 const SCALE = 0.05;
 
+const SHAPE_OPTIONS = {
+  circle: 'circle',
+  rectangle: 'rectangle, rounded corners=3pt, minimum width=2.4cm, minimum height=1.2cm',
+  diamond: 'diamond, aspect=2',
+  decision: 'regular polygon, regular polygon sides=6, minimum size=1.8cm',
+  triangle: 'regular polygon, regular polygon sides=3, shape border rotate=90, minimum size=1.8cm',
+};
+
 export function generateTikzDocument(nodes, edges) {
   const definedColors = new Map();
   let colorDeclarations = '';
+  const libraries = new Set(['arrows.meta']);
 
   nodes.forEach(node => {
     if (!node.color) return;
@@ -29,9 +38,13 @@ export function generateTikzDocument(nodes, edges) {
     const colorName = `color${node.id}`;
     const x = (node.x * SCALE).toFixed(2);
     const y = (-node.y * SCALE).toFixed(2);
+    if (node.shape && ['diamond', 'decision', 'triangle'].includes(node.shape)) {
+      libraries.add('shapes.geometric');
+    }
+    const shapeOption = SHAPE_OPTIONS[node.shape] || SHAPE_OPTIONS.circle;
     const options = [
       'draw',
-      node.shape === 'rectangle' ? 'rectangle, rounded corners=3pt, minimum width=2.4cm, minimum height=1.2cm' : 'circle',
+      shapeOption,
       node.color ? `fill=${colorName}` : null,
       FONT_MAP[node.fontSize] ? `font=${FONT_MAP[node.fontSize]}` : null,
     ].filter(Boolean).join(', ');
@@ -50,10 +63,13 @@ export function generateTikzDocument(nodes, edges) {
     const path = edge.shape?.startsWith('bend')
       ? `to[${edge.shape}=${edge.bend || 30}]`
       : (edge.shape || '--');
-    body += `    \\draw[${styleParts.join(', ')}] (${edge.from}) ${path} (${edge.to});\n`;
+    const labelSegment = edge.label ? ` node[midway, fill=white, inner sep=2pt]{${edge.label}}` : '';
+    body += `    \\draw[${styleParts.join(', ')}] (${edge.from}) ${path}${labelSegment} (${edge.to});\n`;
   });
 
   body += '\\end{tikzpicture}\n';
 
-  return `\\documentclass{standalone}\n\\usepackage{tikz}\n${colorDeclarations}\n\\begin{document}\n${body}\\end{document}`;
+  const libraryLine = libraries.size ? `\\usetikzlibrary{${Array.from(libraries).join(', ')}}\n` : '';
+
+  return `\\documentclass{standalone}\n\\usepackage{tikz}\n${libraryLine}${colorDeclarations}\n\\begin{document}\n${body}\\end{document}`;
 }
