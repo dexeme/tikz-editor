@@ -13,13 +13,18 @@ const SHAPE_OPTIONS = {
   rectangle: 'rectangle, rounded corners=3pt, minimum width=2.4cm, minimum height=1.2cm',
   diamond: 'diamond, aspect=2',
   decision: 'regular polygon, regular polygon sides=6, minimum size=1.8cm',
-  triangle: 'regular polygon, regular polygon sides=3, shape border rotate=90, minimum size=1.8cm',
+  triangle: 'regular polygon, regular polygon sides=3, minimum size=1.8cm',
 };
 
 export function generateTikzDocument(nodes, edges) {
   const definedColors = new Map();
   let colorDeclarations = '';
   const libraries = new Set(['arrows.meta']);
+
+  const formatNodeLabel = label => {
+    if (!label) return '';
+    return label.toString().split(/\n/).join(' \\ ');
+  };
 
   nodes.forEach(node => {
     if (!node.color) return;
@@ -50,7 +55,7 @@ export function generateTikzDocument(nodes, edges) {
       node.color ? `fill=${colorName}` : null,
       FONT_MAP[node.fontSize] ? `font=${FONT_MAP[node.fontSize]}` : null,
     ].filter(Boolean).join(', ');
-    body += `    \\node[${options}] (${node.id}) at (${x},${y}) {${node.label || ''}};\n`;
+    body += `    \\node[${options}] (${node.id}) at (${x},${y}) {${formatNodeLabel(node.label)}};\n`;
   });
 
   if (edges.length) {

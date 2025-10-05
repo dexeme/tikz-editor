@@ -113,6 +113,319 @@ createApp({
       { mode: 'delete', label: 'Remover', icon: '🗑️', accent: 'red' },
     ];
 
+    const templates = [
+      {
+        id: 'blank-canvas',
+        name: 'Canvas em branco',
+        description: 'Limpe o editor e comece um diagrama do zero.',
+        nodes: [],
+        edges: [],
+        textBlocks: [],
+      },
+      {
+        id: 'linear-flow',
+        name: 'Fluxo linear de etapas',
+        description: 'Modelo com três estágios sequenciais para fluxos simples.',
+        nodes: [
+          {
+            id: 'tpl-linear-start',
+            label: 'Ideia inicial',
+            color: '#bae6fd',
+            shape: 'rectangle',
+            fontSize: '16',
+            x: 260,
+            y: 220,
+          },
+          {
+            id: 'tpl-linear-review',
+            label: 'Revisão e ajuste',
+            color: '#fef3c7',
+            shape: 'rectangle',
+            fontSize: '16',
+            x: 520,
+            y: 220,
+          },
+          {
+            id: 'tpl-linear-delivery',
+            label: 'Entrega final',
+            color: '#bbf7d0',
+            shape: 'rectangle',
+            fontSize: '16',
+            x: 780,
+            y: 220,
+          },
+        ],
+        edges: [
+          {
+            id: 'tpl-linear-e1',
+            from: 'tpl-linear-start',
+            to: 'tpl-linear-review',
+            fromAnchor: 'east',
+            toAnchor: 'west',
+            style: 'solid',
+            direction: '->',
+            shape: 'straight',
+            bend: 30,
+            label: { text: 'Planejar', position: 'auto' },
+          },
+          {
+            id: 'tpl-linear-e2',
+            from: 'tpl-linear-review',
+            to: 'tpl-linear-delivery',
+            fromAnchor: 'east',
+            toAnchor: 'west',
+            style: 'solid',
+            direction: '->',
+            shape: 'straight',
+            bend: 30,
+            label: { text: 'Executar', position: 'auto' },
+          },
+        ],
+        textBlocks: [
+          {
+            id: 'tpl-linear-note',
+            x: 240,
+            y: 320,
+            width: 360,
+            height: 120,
+            text: 'Use este fluxo para documentar rapidamente pipelines simples. Dê duplo clique para adaptar os rótulos.',
+            fontSize: 16,
+            fontWeight: 500,
+          },
+        ],
+      },
+      {
+        id: 'decision-tree',
+        name: 'Árvore de decisão',
+        description: 'Estrutura ramificada com decisão e dois resultados.',
+        nodes: [
+          {
+            id: 'tpl-decision-start',
+            label: 'Situação atual',
+            color: '#e0f2fe',
+            shape: 'circle',
+            fontSize: '16',
+            x: 360,
+            y: 220,
+          },
+          {
+            id: 'tpl-decision-choice',
+            label: 'Tomar decisão?',
+            color: '#fde68a',
+            shape: 'decision',
+            fontSize: '16',
+            x: 560,
+            y: 220,
+          },
+          {
+            id: 'tpl-decision-yes',
+            label: 'Resultado positivo',
+            color: '#bbf7d0',
+            shape: 'rectangle',
+            fontSize: '16',
+            x: 760,
+            y: 140,
+          },
+          {
+            id: 'tpl-decision-no',
+            label: 'Plano alternativo',
+            color: '#fecdd3',
+            shape: 'rectangle',
+            fontSize: '16',
+            x: 760,
+            y: 300,
+          },
+        ],
+        edges: [
+          {
+            id: 'tpl-decision-e1',
+            from: 'tpl-decision-start',
+            to: 'tpl-decision-choice',
+            fromAnchor: 'east',
+            toAnchor: 'west',
+            style: 'solid',
+            direction: '->',
+            shape: 'straight',
+            bend: 30,
+            label: null,
+          },
+          {
+            id: 'tpl-decision-e2',
+            from: 'tpl-decision-choice',
+            to: 'tpl-decision-yes',
+            fromAnchor: 'north',
+            toAnchor: 'west',
+            style: 'solid',
+            direction: '->',
+            shape: '90-horizontal',
+            bend: 30,
+            label: { text: 'Sim', position: 'auto' },
+          },
+          {
+            id: 'tpl-decision-e3',
+            from: 'tpl-decision-choice',
+            to: 'tpl-decision-no',
+            fromAnchor: 'south',
+            toAnchor: 'west',
+            style: 'solid',
+            direction: '->',
+            shape: '90-horizontal',
+            bend: 30,
+            label: { text: 'Não', position: 'auto' },
+          },
+        ],
+        textBlocks: [],
+      },
+      {
+        id: 'pseudoentropy-views',
+        name: 'Pseudoentropia: visões clássicas',
+        description: 'Diagrama comparando as visões de Yao, Hill e Métrica.',
+        nodes: [
+          {
+            id: 'tpl-pseudo-source',
+            label: "Distribuição de Probabilidade\n'X'",
+            color: '#f0f0f0',
+            shape: 'rectangle',
+            fontSize: '16',
+            x: 220,
+            y: 260,
+          },
+          {
+            id: 'tpl-pseudo-goal',
+            label: 'Qual o objetivo\ndo adversário?',
+            color: '#ffe6cc',
+            shape: 'diamond',
+            fontSize: '16',
+            x: 500,
+            y: 260,
+          },
+          {
+            id: 'tpl-pseudo-yao',
+            label: 'Visão de YAO\n(Pseudoentropia via Compressão)\nAtacante: Construtivo',
+            color: '#e6e6ff',
+            shape: 'rectangle',
+            fontSize: '16',
+            x: 780,
+            y: 180,
+          },
+          {
+            id: 'tpl-pseudo-choice',
+            label: 'Comparação:\nUMA vs. CONJUNTO?',
+            color: '#ffe6cc',
+            shape: 'diamond',
+            fontSize: '16',
+            x: 780,
+            y: 340,
+          },
+          {
+            id: 'tpl-pseudo-hill',
+            label: 'Visão de HILL\n(Pseudoentropia via Indistinguibilidade)\nAtacante: Decisório',
+            color: '#e6e6ff',
+            shape: 'rectangle',
+            fontSize: '16',
+            x: 1060,
+            y: 240,
+          },
+          {
+            id: 'tpl-pseudo-metric',
+            label: 'Visão MÉTRICA\n(Pseudoentropia via Métrica)\nAtacante: Decisório',
+            color: '#e6e6ff',
+            shape: 'rectangle',
+            fontSize: '16',
+            x: 1060,
+            y: 400,
+          },
+        ],
+        edges: [
+          {
+            id: 'tpl-pseudo-e1',
+            from: 'tpl-pseudo-source',
+            to: 'tpl-pseudo-goal',
+            fromAnchor: 'east',
+            toAnchor: 'west',
+            style: 'solid',
+            direction: '->',
+            shape: 'straight',
+            bend: 30,
+            label: null,
+          },
+          {
+            id: 'tpl-pseudo-e2',
+            from: 'tpl-pseudo-goal',
+            to: 'tpl-pseudo-yao',
+            fromAnchor: 'north',
+            toAnchor: 'west',
+            style: 'solid',
+            direction: '->',
+            shape: '90-vertical',
+            bend: 30,
+            label: { text: 'COMPRIMIR', position: 'auto' },
+          },
+          {
+            id: 'tpl-pseudo-e3',
+            from: 'tpl-pseudo-goal',
+            to: 'tpl-pseudo-choice',
+            fromAnchor: 'south',
+            toAnchor: 'west',
+            style: 'solid',
+            direction: '->',
+            shape: '90-horizontal',
+            bend: 30,
+            label: { text: 'DISTINGUIR', position: 'auto' },
+          },
+          {
+            id: 'tpl-pseudo-e4',
+            from: 'tpl-pseudo-choice',
+            to: 'tpl-pseudo-hill',
+            fromAnchor: 'east',
+            toAnchor: 'west',
+            style: 'solid',
+            direction: '->',
+            shape: 'straight',
+            bend: 30,
+            label: { text: 'Contra UMA', position: 'auto' },
+          },
+          {
+            id: 'tpl-pseudo-e5',
+            from: 'tpl-pseudo-choice',
+            to: 'tpl-pseudo-metric',
+            fromAnchor: 'south',
+            toAnchor: 'west',
+            style: 'solid',
+            direction: '->',
+            shape: '90-horizontal',
+            bend: 30,
+            label: { text: 'Contra o CONJUNTO', position: 'auto' },
+          },
+          {
+            id: 'tpl-pseudo-e6',
+            from: 'tpl-pseudo-hill',
+            to: 'tpl-pseudo-metric',
+            fromAnchor: 'south',
+            toAnchor: 'north',
+            style: 'dashed',
+            direction: '->',
+            shape: 'straight',
+            bend: 30,
+            label: { text: 'implica', position: 'auto' },
+          },
+          {
+            id: 'tpl-pseudo-e7',
+            from: 'tpl-pseudo-metric',
+            to: 'tpl-pseudo-yao',
+            fromAnchor: 'north',
+            toAnchor: 'south',
+            style: 'dashed',
+            direction: '->',
+            shape: 'straight',
+            bend: 30,
+            label: { text: 'implica', position: 'auto' },
+          },
+        ],
+        textBlocks: [],
+      },
+    ];
+
     const canvasRef = ref(null);
     const canvasWrapperRef = ref(null);
     const nodeMenuButtonRef = ref(null);
@@ -121,16 +434,6 @@ createApp({
     const renderer = ref(null);
     const feedback = ref('');
     const tikzCode = ref('');
-    const tikzPreviewDoc = computed(() => {
-      const code = tikzCode.value;
-      if (!code) return '';
-      const match = code.match(/\\begin\{tikzpicture\}([\s\S]*?)\\end\{tikzpicture\}/);
-      if (!match) return '';
-      const content = match[1].trim();
-      if (!content) return '';
-      const sanitized = content.replace(/<\/script>/gi, '<\\/script>');
-      return `<!DOCTYPE html>\n<html lang="pt-BR">\n<head>\n  <meta charset="UTF-8" />\n  <style>body{margin:0;padding:8px;background:transparent;color:#0f172a;font-family:Inter,system-ui,sans-serif;}figure{margin:0;}svg{max-width:100%;height:auto;}</style>\n  <script src="https://tikzjax.com/v1/tikzjax.js"></script>\n</head>\n<body>\n<script type="text/tikz">\\begin{tikzpicture}\n${sanitized}\n\\end{tikzpicture}</script>\n</body>\n</html>`;
-    });
     const showNodeMenu = ref(false);
     const inlineEditor = reactive({
       visible: false,
@@ -292,6 +595,39 @@ createApp({
       pushHistory();
       flash('O diagrama foi limpo. Comece adicionando novos elementos.');
       renderer.value?.draw();
+    }
+
+    function applyTemplate(templateId) {
+      const template = templates.find(item => item.id === templateId);
+      if (!template) return;
+
+      const requiresConfirmation = canReset.value;
+      if (requiresConfirmation) {
+        const confirmed = window.confirm(
+          'Carregar um modelo substituirá o diagrama atual. Deseja continuar?'
+        );
+        if (!confirmed) {
+          return;
+        }
+      }
+
+      closeInlineEditor();
+      closeNodeMenu();
+
+      state.nodes = template.nodes.map(node => ({ ...node }));
+      state.edges = template.edges.map(edge => normalizeEdge({ ...edge }));
+      state.textBlocks = (template.textBlocks || []).map(block => ({ ...block }));
+      state.selected = null;
+      state.mode = 'select';
+      state.edgeDraft = null;
+      state.hoverNodeId = null;
+      state.hoverAnchor = null;
+      state.pointer = null;
+
+      pushHistory();
+      invalidateTikz();
+      renderer.value?.draw();
+      flash(`Modelo "${template.name}" carregado. Ajuste conforme necessário.`);
     }
 
     function setSelected(payload) {
@@ -867,6 +1203,7 @@ createApp({
     return {
       tools,
       availableShapes,
+      templates,
       mode,
       selected,
       canUndo,
@@ -875,7 +1212,6 @@ createApp({
       currentHint,
       canReset,
       tikzCode,
-      tikzPreviewDoc,
       canvasRef,
       canvasWrapperRef,
       nodeMenuButtonRef,
@@ -887,6 +1223,7 @@ createApp({
       toggleNodeMenu,
       createNodeFromMenu,
       resetGraph,
+      applyTemplate,
       copyToClipboard,
       onCanvasMouseDown,
       onCanvasMouseMove,

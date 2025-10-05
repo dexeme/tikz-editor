@@ -179,11 +179,21 @@ export function createCanvasRenderer(canvas, state) {
     ctx.fill(path);
     ctx.stroke(path);
 
+    const fontSize = Number(node.fontSize) || 16;
+    const lines = (node.label || 'Nó').toString().split(/\n/);
+    const lineHeight = fontSize * 1.25;
+    const totalHeight = lineHeight * (lines.length - 1);
+
     ctx.fillStyle = '#0f172a';
-    ctx.font = `600 ${node.fontSize || 16}px Inter, system-ui`;
+    ctx.font = `600 ${fontSize}px Inter, system-ui`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(node.label || 'Nó', node.x, node.y);
+
+    let offsetY = node.y - totalHeight / 2;
+    lines.forEach(line => {
+      ctx.fillText(line, node.x, offsetY);
+      offsetY += lineHeight;
+    });
     ctx.restore();
   }
 
