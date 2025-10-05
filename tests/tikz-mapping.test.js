@@ -43,6 +43,10 @@ const nodes = [makeNode('A', 0, 0), makeNode('B', 160, 80)];
 // mapPort preserves orientation naming
 assert.equal(mapPort.north, 'north');
 assert.equal(mapPort.east, 'east');
+assert.equal(mapPort.northeast, 'north east');
+assert.equal(mapPort.northwest, 'north west');
+assert.equal(mapPort.southeast, 'south east');
+assert.equal(mapPort.southwest, 'south west');
 
 // Orthogonal resolution should match expected TikZ codes
 assert.equal(resolveOrthogonalTikz('90-vertical'), '|-');
@@ -79,6 +83,7 @@ assert.ok(
 const centerAlignedStraightDoc = generateTikzDocument(
   nodes,
   [makeBaseEdge()],
+  [],
   null,
   { edgeLabelAlignment: 'center' }
 );
@@ -90,6 +95,7 @@ assert.ok(
 const rightAlignedStraightDoc = generateTikzDocument(
   nodes,
   [makeBaseEdge()],
+  [],
   null,
   { edgeLabelAlignment: 'right' }
 );
@@ -101,6 +107,7 @@ assert.ok(
 const leftAlignedStraightDoc = generateTikzDocument(
   nodes,
   [makeBaseEdge()],
+  [],
   null,
   { edgeLabelAlignment: 'left' }
 );
@@ -112,6 +119,7 @@ assert.ok(
 const centerAlignedCurveDoc = generateTikzDocument(
   nodes,
   [makeBaseEdge({ shape: 'curva-direita' })],
+  [],
   null,
   { edgeLabelAlignment: 'center' }
 );
@@ -127,6 +135,7 @@ const autoOffsetDoc = generateTikzDocument(
       label: { text: 'demo', offset: [10, -6] },
     }),
   ],
+  [],
   null,
   { edgeLabelAlignment: 'auto' }
 );
@@ -137,12 +146,58 @@ assert.ok(
   'Modo automático deve respeitar deslocamentos configurados nos labels'
 );
 
-const nodeBorderDoc = generateTikzDocument(nodes, [makeBaseEdge()], null, {
+const nodeBorderDoc = generateTikzDocument(nodes, [makeBaseEdge()], [], null, {
   edgeLabelAlignment: 'center',
 });
 assert.ok(
-  /\\node\[draw=customColor\d+, circle, fill=customColor\d+/.test(nodeBorderDoc),
+  /\\node\[draw=customColor\d+, [^\]]*fill=customColor\d+/.test(nodeBorderDoc),
   'Nós devem exportar a cor da borda personalizada no TikZ'
+);
+
+const multilineNodeDoc = generateTikzDocument(
+  [
+    {
+      ...makeNode('C', 80, -40),
+      label: 'Primeira linha\nSegunda linha',
+    },
+  ],
+  []
+);
+assert.ok(
+  multilineNodeDoc.includes('{Primeira linha \\\\ Segunda linha}'),
+  'Nós com múltiplas linhas devem inserir \\ antes de cada nova linha no LaTeX'
+);
+
+const matrixDoc = generateTikzDocument(
+  [],
+  [],
+  [
+    {
+      id: 'matrix-1',
+      x: 100,
+      y: 200,
+      data: [
+        ['0', '1'],
+        ['1', '0'],
+      ],
+      colorMap: { '0': '#ffffff', '1': '#000000' },
+      cellSize: 4,
+    },
+  ]
+);
+assert.ok(
+  matrixDoc.includes('\\begin{scope}[shift={(5cm,-10cm)}]'),
+  'A matriz deve aplicar um escopo deslocado conforme a posição no canvas'
+);
+assert.ok(
+  /\\fill\[customColor\d+\] \(0\.00,-0\.20\) rectangle \+\+\(0\.20,0\.20\);/.test(
+    matrixDoc
+  ),
+  'As células da matriz devem ser exportadas como retângulos preenchidos com escala convertida'
+);
+assert.ok(
+  matrixDoc.includes('\\definecolor'),
+  'As cores personalizadas das matrizes devem ser declaradas no preâmbulo'
 );
 
 console.log('All routing mapping tests passed');

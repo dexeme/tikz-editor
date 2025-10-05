@@ -3,56 +3,1367 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Editor TikZ com Vue</title>
+  <title>TikZ Editor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles/main.css">
 </head>
-<body>
-  <div id="app" v-cloak>
-    <header class="app-header">
-      <div>
-        <h1>Tikz Editor</h1>
+<body class="bg-slate-950 text-slate-200 font-[Inter] antialiased">
+  <div id="app" v-cloak class="flex h-screen">
+    <transition name="fade">
+      <div
+        v-if="feedback"
+        class="fixed left-1/2 top-6 z-50 -translate-x-1/2 rounded-full bg-indigo-500 px-5 py-2 text-sm font-semibold text-white shadow-xl"
+        role="status"
+        aria-live="polite"
+      >
+        {{ feedback }}
       </div>
-      <div class="header-actions">
-        <div class="thickness-control">
-          <label for="edge-thickness">Grossura das setas</label>
-          <div class="thickness-control-input">
-            <input
-              id="edge-thickness"
-              type="range"
-              min="1"
-              max="8"
-              step="0.5"
-              :value="edgeThickness"
-              @input="updateEdgeThickness($event.target.value)"
-              @change="commitHistory"
-            >
-            <span>{{ edgeThicknessDisplay }} px</span>
+    </transition>
+
+    <div class="flex flex-1 overflow-hidden">
+      <aside
+        class="relative z-30 flex w-[5.5rem] flex-col gap-4 border-r border-slate-800 bg-slate-900/80 px-3 py-5 text-slate-300 backdrop-blur"
+        role="navigation"
+        aria-label="Ações principais"
+      >
+        <div class="flex flex-col items-start gap-3 text-left">
+          <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg">
+            <span class="text-xl font-semibold">∿</span>
+          </div>
+          <div class="space-y-1">
+            <p class="text-[0.65rem] font-semibold uppercase tracking-[0.4em] text-indigo-400">Editor</p>
+            <h1 class="text-base font-semibold text-white">TikZ</h1>
           </div>
         </div>
-        <div class="label-alignment-control">
-          <label for="edge-label-alignment">Centralizar Labels A...</label>
-          <select
-            id="edge-label-alignment"
-            :value="edgeLabelAlignment"
-            @change="onEdgeLabelAlignmentChange($event.target.value)"
+
+        <nav class="flex flex-col items-start gap-2.5">
+          <button
+            type="button"
+            class="sidebar-btn"
+            title="Carregar diagrama"
+            @click="triggerLoadDiagram"
           >
-            <option value="auto">Automático</option>
-            <option value="left">Left</option>
-            <option value="center">Center</option>
-            <option value="right">Right (atual)</option>
-          </select>
+            <span class="sidebar-btn-icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 12v6m0-6 3 3m-3-3-3 3" />
+              </svg>
+            </span>
+            <span class="sr-only">Carregar diagrama</span>
+          </button>
+          <button
+            type="button"
+            class="sidebar-btn"
+            title="Salvar diagrama"
+            @click="saveDiagram"
+            :disabled="!canReset"
+          >
+            <span class="sidebar-btn-icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 16v5H7v-5" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0-4-4m4 4 4-4" />
+              </svg>
+            </span>
+            <span class="sr-only">Salvar diagrama</span>
+          </button>
+          <button
+            type="button"
+            class="sidebar-btn"
+            title="Copiar código TikZ"
+            @click="copyToClipboard"
+            :disabled="!tikzCode"
+          >
+            <span class="sidebar-btn-icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <rect x="9" y="9" width="11" height="11" rx="2" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" />
+              </svg>
+            </span>
+            <span class="sr-only">Copiar código TikZ</span>
+          </button>
+          <button
+            type="button"
+            class="sidebar-btn"
+            title="Importar matriz"
+            @click="triggerMatrixImport"
+          >
+            <span class="sidebar-btn-icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 3v18M3 9h18" />
+              </svg>
+            </span>
+            <span class="sr-only">Importar matriz</span>
+          </button>
+          <div class="relative">
+            <button
+              type="button"
+              class="sidebar-btn"
+              title="Inserir formas"
+              ref="nodeMenuButtonRef"
+              :class="{ 'sidebar-btn--active': showNodeMenu }"
+              @click="toggleNodeMenu"
+              :aria-expanded="showNodeMenu ? 'true' : 'false'"
+              aria-controls="shape-menu"
+            >
+              <span class="sidebar-btn-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 7v10m5-5H7" />
+                </svg>
+              </span>
+              <span class="sr-only">Inserir formas</span>
+            </button>
+            <div
+              v-if="showNodeMenu"
+              id="shape-menu"
+              ref="nodeMenuRef"
+              class="sidebar-popover"
+              role="menu"
+            >
+              <p class="sidebar-popover-title">Escolha uma forma</p>
+              <div class="sidebar-popover-body sidebar-popover-list">
+                <button
+                  v-for="shape in availableShapes"
+                  :key="shape.id"
+                  type="button"
+                  @click="createNodeFromMenu(shape.id)"
+                >
+                  <span class="shape-icon" aria-hidden="true">
+                    <svg v-if="shape.id === 'rectangle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                      <rect x="5" y="6" width="14" height="12" rx="2" />
+                    </svg>
+                    <svg v-else-if="shape.id === 'circle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                      <circle cx="12" cy="12" r="6.5" />
+                    </svg>
+                    <svg v-else-if="shape.id === 'decision'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 4l7 8-7 8-7-8 7-8z" />
+                    </svg>
+                    <svg v-else-if="shape.id === 'diamond'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 9-7 9-7-9 7-9z" />
+                    </svg>
+                    <svg v-else-if="shape.id === 'triangle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 18h15L12 6z" />
+                    </svg>
+                  </span>
+                  <span>{{ shape.label }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="relative">
+            <button
+              type="button"
+              class="sidebar-btn"
+              title="Ajustar espessura das arestas"
+              ref="edgeThicknessMenuButtonRef"
+              :class="{ 'sidebar-btn--active': showEdgeThicknessMenu }"
+              @click="toggleEdgeThicknessMenu"
+              :aria-expanded="showEdgeThicknessMenu ? 'true' : 'false'"
+              aria-controls="edge-thickness-menu"
+            >
+              <span class="sidebar-btn-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 8.5h14M5 12h10M5 15.5h6" />
+                </svg>
+              </span>
+              <span class="sr-only">Ajustar espessura das arestas</span>
+            </button>
+            <div
+              v-if="showEdgeThicknessMenu"
+              id="edge-thickness-menu"
+              ref="edgeThicknessMenuRef"
+              class="sidebar-popover"
+              role="menu"
+            >
+              <p class="sidebar-popover-title">Espessura das arestas</p>
+              <div class="sidebar-popover-body space-y-4">
+                <div class="flex items-center justify-between text-xs font-medium text-slate-300">
+                  <span>Espessura global</span>
+                  <span class="text-indigo-300 font-semibold">{{ edgeThicknessDisplay }} px</span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="8"
+                  step="0.5"
+                  :value="edgeThickness"
+                  @input="updateEdgeThickness($event.target.value)"
+                  @change="commitHistory"
+                  class="slider"
+                >
+              </div>
+            </div>
+          </div>
+          <div class="relative">
+            <button
+              type="button"
+              class="sidebar-btn"
+              title="Definir alinhamento padrão do rótulo"
+              ref="labelAlignmentMenuButtonRef"
+              :class="{ 'sidebar-btn--active': showLabelAlignmentMenu }"
+              @click="toggleLabelAlignmentMenu"
+              :aria-expanded="showLabelAlignmentMenu ? 'true' : 'false'"
+              aria-controls="label-alignment-menu"
+            >
+              <span class="sidebar-btn-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 7h12M6 12h8M6 17h10" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 12l2-2m0 0 2 2m-2-2v4" />
+                </svg>
+              </span>
+              <span class="sr-only">Definir alinhamento padrão do rótulo</span>
+            </button>
+            <div
+              v-if="showLabelAlignmentMenu"
+              id="label-alignment-menu"
+              ref="labelAlignmentMenuRef"
+              class="sidebar-popover"
+              role="menu"
+            >
+              <p class="sidebar-popover-title">Alinhamento padrão</p>
+              <div class="sidebar-popover-body space-y-3">
+                <label class="sidebar-field">
+                  <span>Posição dos rótulos das arestas</span>
+                  <select
+                    :value="edgeLabelAlignment"
+                    @change="onEdgeLabelAlignmentChange($event.target.value)"
+                    class="form-field"
+                  >
+                    <option value="auto">Automático</option>
+                    <option value="left">Esquerda</option>
+                    <option value="center">Centralizado</option>
+                    <option value="right">Direita</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="relative">
+            <button
+              type="button"
+              class="sidebar-btn"
+              title="Histórico"
+              ref="historyMenuButtonRef"
+              :class="{ 'sidebar-btn--active': showHistoryMenu }"
+              @click="toggleHistoryMenu"
+              :aria-expanded="showHistoryMenu ? 'true' : 'false'"
+              aria-controls="history-menu"
+            >
+              <span class="sidebar-btn-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v4m0 10a7 7 0 1 1 6.32-4" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="m16 5-4-2-4 2" />
+                </svg>
+              </span>
+              <span class="sr-only">Histórico</span>
+            </button>
+            <div
+              v-if="showHistoryMenu"
+              id="history-menu"
+              ref="historyMenuRef"
+              class="sidebar-popover"
+              role="menu"
+            >
+              <p class="sidebar-popover-title">Histórico</p>
+              <div class="sidebar-popover-body space-y-4">
+                <p class="text-xs leading-relaxed text-slate-400">
+                  Gerencie ações recentes no canvas.
+                </p>
+                <div class="grid gap-2">
+                  <button type="button" class="pill-btn w-full justify-center" @click="undo" :disabled="!canUndo" aria-label="Desfazer">
+                    <span aria-hidden="true">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M7 9 3 13l4 4" />
+                        <path d="M3 13h11a5 5 0 1 1 0 10h-2" />
+                      </svg>
+                    </span>
+                    <span>Desfazer</span>
+                  </button>
+                  <button type="button" class="pill-btn w-full justify-center" @click="redo" :disabled="!canRedo" aria-label="Refazer">
+                    <span aria-hidden="true">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="m17 9 4 4-4 4" />
+                        <path d="M21 13H10a5 5 0 1 0 0 10h2" />
+                      </svg>
+                    </span>
+                    <span>Refazer</span>
+                  </button>
+                  <button type="button" class="pill-btn pill-btn--danger w-full justify-center" @click="resetGraph" :disabled="!canReset">
+                    <span aria-hidden="true">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 4v6h6" />
+                        <path d="M4 10a8 8 0 1 0 2.34-5.66L4 6" />
+                      </svg>
+                    </span>
+                    <span>Limpar canvas</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </nav>
+
+        <div class="mt-auto space-y-2.5">
+          <button type="button" class="sidebar-btn" title="Centralizar visão" @click="resetView">
+            <span class="sidebar-btn-icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <circle cx="12" cy="12" r="9" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v8m4-4H8" />
+              </svg>
+            </span>
+            <span class="sr-only">Centralizar visão</span>
+          </button>
+          <button
+            v-if="frame"
+            type="button"
+            class="sidebar-btn"
+            title="Enquadrar frame"
+            @click="focusFrame"
+          >
+            <span class="sidebar-btn-icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <rect x="5" y="5" width="14" height="14" rx="2" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 9h6v6H9z" />
+              </svg>
+            </span>
+            <span class="sr-only">Enquadrar frame</span>
+          </button>
+          <button
+            type="button"
+            class="sidebar-btn"
+            title="Galeria de templates"
+            :class="{ 'sidebar-btn--active': showTemplateBrowser }"
+            @click="toggleTemplateBrowser"
+          >
+            <span class="sidebar-btn-icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z" />
+              </svg>
+            </span>
+            <span class="sr-only">Galeria de templates</span>
+          </button>
+          <div class="relative">
+            <button
+              type="button"
+              class="sidebar-btn"
+              title="Configurações"
+              :class="{ 'sidebar-btn--active': showSettingsDialog }"
+              @click="toggleSettingsDialog"
+              :aria-expanded="showSettingsDialog ? 'true' : 'false'"
+              aria-controls="settings-dialog"
+            >
+              <span class="sidebar-btn-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 3.5h1.5l.45 2.4a6.5 6.5 0 0 1 1.74.72l2.2-1.26 1.06 1.06-1.26 2.2c.27.54.5 1.13.66 1.74l2.43.44v1.5l-2.43.45a6.6 6.6 0 0 1-.66 1.74l1.26 2.2-1.06 1.06-2.2-1.26a6.5 6.5 0 0 1-1.74.72l-.45 2.4h-1.5l-.45-2.4a6.5 6.5 0 0 1-1.74-.72l-2.2 1.26-1.06-1.06 1.26-2.2a6.6 6.6 0 0 1-.66-1.74l-2.43-.45v-1.5l2.43-.45c.16-.61.39-1.2.66-1.74l-1.26-2.2 1.06-1.06 2.2 1.26a6.5 6.5 0 0 1 1.74-.72l.45-2.4z" />
+                  <circle cx="12" cy="12" r="2.5" />
+                </svg>
+              </span>
+              <span class="sr-only">Configurações</span>
+            </button>
+          </div>
         </div>
-        <button class="ghost" @click="undo" :disabled="!canUndo">Desfazer</button>
-        <button class="ghost" @click="redo" :disabled="!canRedo">Refazer</button>
-        <button class="ghost" @click="resetGraph" :disabled="!canReset">Reiniciar</button>
-        <button class="ghost" type="button" @click="triggerLoadDiagram">Carregar diagrama</button>
-        <button class="ghost" @click="saveDiagram" :disabled="!canReset">Salvar diagrama</button>
-        <button class="primary" @click="copyToClipboard" :disabled="!tikzCode">Copiar TikZ</button>
+      </aside>
+
+      <div class="flex flex-1 flex-col overflow-hidden">
+        <header class="border-b border-slate-800 bg-slate-900/80 px-6 py-4 backdrop-blur">
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.3em] text-indigo-400">Interface alternativa</p>
+              <h1 class="text-2xl font-semibold text-white">TikZ Editor</h1>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              <button type="button" class="btn btn-ghost" @click="triggerLoadDiagram">
+                Importar
+              </button>
+              <button type="button" class="btn btn-ghost" @click="saveDiagram" :disabled="!canReset">
+                Salvar JSON
+              </button>
+              <button type="button" class="btn btn-primary" @click="copyToClipboard" :disabled="!tikzCode">
+                Copiar TikZ
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main class="flex flex-1 overflow-hidden">
+          <section class="flex flex-1 flex-col overflow-hidden">
+            <div class="relative flex-1 overflow-hidden p-6">
+              <div class="canvas-shell">
+                <div class="absolute inset-0 rounded-3xl canvas-grid"></div>
+
+                <div class="relative z-10 flex h-full flex-col">
+                  <div class="flex-1 p-6">
+                    <div class="canvas-wrapper" ref="canvasWrapperRef" :class="{ 'is-panning': isPanningActive }">
+                      <div
+                        v-if="selectedNode"
+                        ref="nodeToolbarRef"
+                        class="selection-toolbar"
+                        role="toolbar"
+                        aria-label="Opções do nó selecionado"
+                        :style="nodeToolbarStyle"
+                      >
+                        <div
+                          v-if="selectedNodes.length > 1"
+                          class="selection-toolbar-meta"
+                          aria-live="polite"
+                        >
+                          Aplicando em {{ selectedNodes.length }} nós
+                        </div>
+                        <div class="selection-toolbar-row">
+                          <div class="toolbar-item" @mouseenter="setNodeToolbarHover('fill')" @mouseleave="setNodeToolbarHover(null)">
+                            <button
+                              type="button"
+                              class="toolbar-action"
+                              :class="{ active: nodeToolbarState.activePopover === 'fill' }"
+                              @click.stop="toggleNodePopover('fill')"
+                              aria-label="Cor de preenchimento"
+                            >
+                              <span class="toolbar-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                  <path d="M12 3.2c3.1 3.6 4.9 6.3 4.9 8.9a4.9 4.9 0 1 1-9.8 0c0-2.6 1.8-5.3 4.9-8.9z" />
+                                  <path d="M8.4 14.6a3.6 3.6 0 0 0 7.2 0" />
+                                </svg>
+                              </span>
+                            </button>
+                            <div v-if="nodeToolbarState.activePopover === 'fill'" class="selection-popover">
+                              <div v-if="recentColorPalette.length" class="swatch-group">
+                                <p class="swatch-group-label">Recentes</p>
+                                <div class="swatch-grid">
+                                  <button
+                                    v-for="color in recentColorPalette"
+                                    :key="`recent-fill-${color}`"
+                                    type="button"
+                                    class="swatch"
+                                    :style="{ backgroundColor: color }"
+                                    :aria-label="`Aplicar cor ${color}`"
+                                    @click="applyNodeFill(color)"
+                                  ></button>
+                                </div>
+                              </div>
+                              <div class="swatch-group">
+                                <p class="swatch-group-label">Paleta</p>
+                                <div class="swatch-grid">
+                                  <button
+                                    v-for="color in nodeFillPalette"
+                                    :key="`fill-${color}`"
+                                    type="button"
+                                    class="swatch"
+                                    :style="{ backgroundColor: color }"
+                                    :aria-label="`Aplicar cor ${color}`"
+                                    @click="applyNodeFill(color)"
+                                  ></button>
+                                </div>
+                              </div>
+                              <div class="custom-color-picker">
+                                <input
+                                  type="color"
+                                  :value="nodeToolbarState.fillCustomColor"
+                                  @input="applyNodeFill($event.target.value, { commit: false })"
+                                  @change="applyNodeFill($event.target.value, { forceCommit: true })"
+                                >
+                                <button type="button" @click="addCustomColor('fill')">Adicionar à paleta</button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="toolbar-item" @mouseenter="setNodeToolbarHover('stroke')" @mouseleave="setNodeToolbarHover(null)">
+                            <button
+                              type="button"
+                              class="toolbar-action"
+                              :class="{ active: nodeToolbarState.activePopover === 'stroke' }"
+                              @click.stop="toggleNodePopover('stroke')"
+                              aria-label="Cor da borda"
+                            >
+                              <span class="toolbar-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                  <path d="M16.6 3.6l3.8 3.8-3 3" />
+                                  <path d="M8.2 12.8l7.2-7.2 2.9 2.9-7.2 7.2-4.3 1.4 1.4-4.3z" />
+                                  <path d="M5.4 19.4l2.4-2.4" />
+                                </svg>
+                              </span>
+                            </button>
+                            <div v-if="nodeToolbarState.activePopover === 'stroke'" class="selection-popover">
+                              <div v-if="recentColorPalette.length" class="swatch-group">
+                                <p class="swatch-group-label">Recentes</p>
+                                <div class="swatch-grid">
+                                  <button
+                                    v-for="color in recentColorPalette"
+                                    :key="`recent-stroke-${color}`"
+                                    type="button"
+                                    class="swatch"
+                                    :style="{ backgroundColor: color }"
+                                    :aria-label="`Aplicar borda ${color}`"
+                                    @click="applyNodeBorder(color)"
+                                  ></button>
+                                </div>
+                              </div>
+                              <div class="swatch-group">
+                                <p class="swatch-group-label">Paleta</p>
+                                <div class="swatch-grid">
+                                  <button
+                                    v-for="color in nodeStrokePalette"
+                                    :key="`stroke-${color}`"
+                                    type="button"
+                                    class="swatch"
+                                    :style="{ backgroundColor: color }"
+                                    :aria-label="`Aplicar borda ${color}`"
+                                    @click="applyNodeBorder(color)"
+                                  ></button>
+                                </div>
+                              </div>
+                              <div class="custom-color-picker">
+                                <input
+                                  type="color"
+                                  :value="nodeToolbarState.strokeCustomColor"
+                                  @input="applyNodeBorder($event.target.value, { commit: false })"
+                                  @change="applyNodeBorder($event.target.value, { forceCommit: true })"
+                                >
+                                <button type="button" @click="addCustomColor('stroke')">Adicionar à paleta</button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="toolbar-item" @mouseenter="setNodeToolbarHover('borderWidth')" @mouseleave="setNodeToolbarHover(null)">
+                            <button
+                              type="button"
+                              class="toolbar-action"
+                              :class="{ active: nodeToolbarState.activePopover === 'borderWidth' }"
+                              @click.stop="toggleNodePopover('borderWidth')"
+                              aria-label="Espessura da borda"
+                            >
+                              <span class="toolbar-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round">
+                                  <path d="M5 7h14" stroke-width="1.4" />
+                                  <path d="M5 12h14" stroke-width="2.2" />
+                                  <path d="M5 17h14" stroke-width="1" />
+                                </svg>
+                              </span>
+                            </button>
+                            <div v-if="nodeToolbarState.activePopover === 'borderWidth'" class="selection-popover selection-popover--wide">
+                              <div class="slider-control">
+                                <span>Espessura: {{ Number(selectedNode.borderWidth ?? 3).toFixed(1) }} px</span>
+                                <input
+                                  type="range"
+                                  min="1"
+                                  max="8"
+                                  step="0.5"
+                                  :value="selectedNode.borderWidth"
+                                  @input="updateNodeBorderWidth($event.target.value, { commit: false })"
+                                  @change="updateNodeBorderWidth($event.target.value, { forceCommit: true })"
+                                >
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="toolbar-item" @mouseenter="setNodeToolbarHover('cornerRadius')" @mouseleave="setNodeToolbarHover(null)">
+                            <button
+                              type="button"
+                              class="toolbar-action"
+                              :class="{ active: nodeToolbarState.activePopover === 'cornerRadius' }"
+                              @click.stop="toggleNodePopover('cornerRadius')"
+                              aria-label="Arredondamento das bordas"
+                            >
+                              <span class="toolbar-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                  <rect x="5" y="5" width="14" height="14" rx="4" />
+                                  <path d="M9 5v2a2 2 0 0 0 2 2h2" />
+                                </svg>
+                              </span>
+                            </button>
+                            <div v-if="nodeToolbarState.activePopover === 'cornerRadius'" class="selection-popover selection-popover--wide">
+                              <div class="slider-control">
+                                <span>Raio: {{ Math.round(Number(selectedNode.cornerRadius ?? 16)) }} px</span>
+                                <input
+                                  type="range"
+                                  min="0"
+                                  max="64"
+                                  step="1"
+                                  :value="selectedNode.cornerRadius"
+                                  @input="updateNodeCornerRadius($event.target.value, { commit: false })"
+                                  @change="updateNodeCornerRadius($event.target.value, { forceCommit: true })"
+                                >
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="toolbar-item" @mouseenter="setNodeToolbarHover('fontSize')" @mouseleave="setNodeToolbarHover(null)">
+                            <button
+                              type="button"
+                              class="toolbar-action"
+                              :class="{ active: nodeToolbarState.activePopover === 'fontSize' }"
+                              @click.stop="toggleNodePopover('fontSize')"
+                              aria-label="Tamanho da fonte"
+                            >
+                              <span class="toolbar-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                  <path d="M5 7h14" />
+                                  <path d="M12 7v11" />
+                                  <path d="M8 18h8" />
+                                </svg>
+                              </span>
+                            </button>
+                            <div v-if="nodeToolbarState.activePopover === 'fontSize'" class="selection-popover">
+                              <div class="chip-grid">
+                                <button
+                                  v-for="option in fontSizeOptions"
+                                  :key="`font-${option}`"
+                                  type="button"
+                                  class="chip"
+                                  :class="{ active: selectedNode.fontSize === option }"
+                                  @click="setNodeFontSize(option)"
+                                >
+                                  {{ option }}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="toolbar-item" @mouseenter="setNodeToolbarHover('shape')" @mouseleave="setNodeToolbarHover(null)">
+                            <button
+                              type="button"
+                              class="toolbar-action"
+                              :class="{ active: nodeToolbarState.activePopover === 'shape' }"
+                              @click.stop="toggleNodePopover('shape')"
+                              aria-label="Formato do nó"
+                            >
+                              <span class="toolbar-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                  <rect x="5" y="5" width="14" height="14" rx="3" />
+                                  <circle cx="12" cy="12" r="4.5" />
+                                </svg>
+                              </span>
+                            </button>
+                            <div v-if="nodeToolbarState.activePopover === 'shape'" class="selection-popover">
+                              <div class="shape-grid">
+                                <button
+                                  v-for="shape in availableShapes"
+                                  :key="`shape-${shape.id}`"
+                                  type="button"
+                                  class="chip"
+                                  :class="{ active: selectedNode.shape === shape.id }"
+                                  @click="setNodeShape(shape.id)"
+                                >
+                                  <span class="shape-icon" aria-hidden="true">
+                                    <svg v-if="shape.id === 'rectangle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                                      <rect x="5" y="6" width="14" height="12" rx="2" />
+                                    </svg>
+                                    <svg v-else-if="shape.id === 'circle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                                      <circle cx="12" cy="12" r="6.5" />
+                                    </svg>
+                                    <svg v-else-if="shape.id === 'decision'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 4l7 8-7 8-7-8 7-8z" />
+                                    </svg>
+                                    <svg v-else-if="shape.id === 'diamond'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 9-7 9-7-9 7-9z" />
+                                    </svg>
+                                    <svg v-else-if="shape.id === 'triangle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                                      <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 18h15L12 6z" />
+                                    </svg>
+                                  </span>
+                                  <span>{{ shape.label }}</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="toolbar-item" @mouseenter="setNodeToolbarHover('copy')" @mouseleave="setNodeToolbarHover(null)">
+                            <button type="button" class="toolbar-action" @click="copySelectedFormatting" aria-label="Copiar formatação">
+                              <span class="toolbar-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                  <rect x="9" y="9" width="10" height="10" rx="2" />
+                                  <rect x="5" y="5" width="10" height="10" rx="2" />
+                                </svg>
+                              </span>
+                            </button>
+                          </div>
+
+                          <div class="toolbar-item" @mouseenter="setNodeToolbarHover('paste')" @mouseleave="setNodeToolbarHover(null)">
+                            <button
+                              type="button"
+                              class="toolbar-action"
+                              :class="{ disabled: !canPasteFormatting }"
+                              :disabled="!canPasteFormatting"
+                              @click="pasteSelectedFormatting"
+                              aria-label="Colar formatação"
+                            >
+                              <span class="toolbar-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                  <rect x="6" y="6" width="12" height="14" rx="2" />
+                                  <path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1z" />
+                                  <path d="M12 11v5" />
+                                  <path d="M10.5 14.5L12 16l1.5-1.5" />
+                                </svg>
+                              </span>
+                            </button>
+                          </div>
+
+                          <div class="toolbar-item" @mouseenter="setNodeToolbarHover('remove')" @mouseleave="setNodeToolbarHover(null)">
+                            <button type="button" class="toolbar-action danger" @click="removeSelected" aria-label="Remover nó">
+                              <span class="toolbar-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                  <path d="M6 7h12" />
+                                  <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                                  <rect x="7" y="7" width="10" height="12" rx="1" />
+                                  <path d="M10 11v6" />
+                                  <path d="M14 11v6" />
+                                </svg>
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+                        <div v-if="nodeToolbarHint" class="selection-toolbar-hint">{{ nodeToolbarHint }}</div>
+                      </div>
+
+                      <div
+                        v-if="selectedEdge"
+                        ref="edgeToolbarRef"
+                        class="selection-toolbar edge-toolbar"
+                        role="toolbar"
+                        aria-label="Opções da aresta selecionada"
+                        :style="edgeToolbarStyle"
+                      >
+                        <div class="selection-toolbar-row">
+                          <div class="toolbar-item" @mouseenter="setEdgeToolbarHover('color')" @mouseleave="setEdgeToolbarHover(null)">
+                            <button
+                              type="button"
+                              class="toolbar-action"
+                              :class="{ active: edgeToolbarState.activePopover === 'color' }"
+                              @click.stop="toggleEdgePopover('color')"
+                              aria-label="Cor da aresta"
+                            >
+                              <span class="toolbar-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                  <path d="M12 3.2c3.1 3.6 4.9 6.3 4.9 8.9a4.9 4.9 0 1 1-9.8 0c0-2.6 1.8-5.3 4.9-8.9z" />
+                                  <path d="M8.4 14.6a3.6 3.6 0 0 0 7.2 0" />
+                                </svg>
+                              </span>
+                            </button>
+                            <div v-if="edgeToolbarState.activePopover === 'color'" class="selection-popover">
+                              <div v-if="recentColorPalette.length" class="swatch-group">
+                                <p class="swatch-group-label">Recentes</p>
+                                <div class="swatch-grid">
+                                  <button
+                                    v-for="color in recentColorPalette"
+                                    :key="`edge-recent-${color}`"
+                                    type="button"
+                                    class="swatch"
+                                    :style="{ backgroundColor: color }"
+                                    :aria-label="`Aplicar cor ${color}`"
+                                    @click="applyEdgeColor(color)"
+                                  ></button>
+                                </div>
+                              </div>
+                              <div class="swatch-group">
+                                <p class="swatch-group-label">Paleta</p>
+                                <div class="swatch-grid">
+                                  <button
+                                    v-for="color in nodeStrokePalette"
+                                    :key="`edge-color-${color}`"
+                                    type="button"
+                                    class="swatch"
+                                    :style="{ backgroundColor: color }"
+                                    :aria-label="`Aplicar cor ${color}`"
+                                    @click="applyEdgeColor(color)"
+                                  ></button>
+                                </div>
+                              </div>
+                              <div class="custom-color-picker">
+                                <input
+                                  type="color"
+                                  :value="edgeToolbarState.customColor"
+                                  @input="applyEdgeColor($event.target.value, { commit: false })"
+                                  @change="applyEdgeColor($event.target.value, { forceCommit: true })"
+                                >
+                                <button type="button" @click="addCustomColor('stroke')">Adicionar à paleta</button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="toolbar-item" @mouseenter="setEdgeToolbarHover('style')" @mouseleave="setEdgeToolbarHover(null)">
+                            <button
+                              type="button"
+                              class="toolbar-action"
+                              :class="{ active: edgeToolbarState.activePopover === 'style' }"
+                              @click.stop="toggleEdgePopover('style')"
+                              aria-label="Estilo da linha"
+                            >
+                              <span class="toolbar-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round">
+                                  <path d="M5 9h14" stroke-width="1.6" />
+                                  <path d="M5 12h14" stroke-width="1.6" stroke-dasharray="3 2" />
+                                  <path d="M5 15h14" stroke-width="1.6" stroke-dasharray="1 3" />
+                                </svg>
+                              </span>
+                            </button>
+                            <div v-if="edgeToolbarState.activePopover === 'style'" class="selection-popover selection-popover--compact">
+                              <button type="button" class="chip" :class="{ active: selectedEdge.style === 'solid' }" @click="setEdgeStyle('solid')">Sólida</button>
+                              <button type="button" class="chip" :class="{ active: selectedEdge.style === 'dashed' }" @click="setEdgeStyle('dashed')">Tracejada</button>
+                              <button type="button" class="chip" :class="{ active: selectedEdge.style === 'dotted' }" @click="setEdgeStyle('dotted')">Pontilhada</button>
+                            </div>
+                          </div>
+
+                          <div class="toolbar-item" @mouseenter="setEdgeToolbarHover('direction')" @mouseleave="setEdgeToolbarHover(null)">
+                            <button
+                              type="button"
+                              class="toolbar-action"
+                              :class="{ active: edgeToolbarState.activePopover === 'direction' }"
+                              @click.stop="toggleEdgePopover('direction')"
+                              aria-label="Direção da aresta"
+                            >
+                              <span class="toolbar-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                  <path d="M5 12h14" />
+                                  <path d="M15 8l4 4-4 4" />
+                                </svg>
+                              </span>
+                            </button>
+                            <div v-if="edgeToolbarState.activePopover === 'direction'" class="selection-popover selection-popover--compact">
+                              <div class="chip-grid">
+                                <button type="button" class="chip" :class="{ active: selectedEdge.direction === '->' }" @click="setEdgeDirection('->')">-&gt;</button>
+                                <button type="button" class="chip" :class="{ active: selectedEdge.direction === '<-' }" @click="setEdgeDirection('<-')">&lt;-</button>
+                                <button type="button" class="chip" :class="{ active: selectedEdge.direction === '<->' }" @click="setEdgeDirection('<->')">&lt;-&gt;</button>
+                                <button type="button" class="chip" :class="{ active: selectedEdge.direction === '-' }" @click="setEdgeDirection('-')">-</button>
+                              </div>
+                              <button type="button" class="toolbar-link" @click="flipEdgeDirection">Inverter direção</button>
+                            </div>
+                          </div>
+
+                          <div class="toolbar-item" @mouseenter="setEdgeToolbarHover('thickness')" @mouseleave="setEdgeToolbarHover(null)">
+                            <button
+                              type="button"
+                              class="toolbar-action"
+                              :class="{ active: edgeToolbarState.activePopover === 'thickness' }"
+                              @click.stop="toggleEdgePopover('thickness')"
+                              aria-label="Espessura da aresta"
+                            >
+                              <span class="toolbar-icon" aria-hidden="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round">
+                                  <path d="M9 6v12" stroke-width="1.4" />
+                                  <path d="M15 6v12" stroke-width="2.4" />
+                                </svg>
+                              </span>
+                            </button>
+                            <div v-if="edgeToolbarState.activePopover === 'thickness'" class="selection-popover selection-popover--wide">
+                              <div class="slider-control">
+                                <span>
+                                  {{
+                                    selectedEdge.thickness
+                                      ? 'Personalizada: ' + Number(selectedEdge.thickness).toFixed(1) + ' px'
+                                      : 'Usando padrão: ' + edgeThicknessDisplay
+                                  }}
+                                </span>
+                                <input
+                                  type="range"
+                                  min="1"
+                                  max="8"
+                                  step="0.5"
+                                  :value="selectedEdge.thickness ?? edgeThickness"
+                                  @input="updateSelectedEdgeThickness($event.target.value, { commit: false })"
+                                  @change="updateSelectedEdgeThickness($event.target.value, { forceCommit: true })"
+                                >
+                                <button type="button" class="chip" @click="clearEdgeThickness" :disabled="selectedEdge.thickness == null">
+                                  Usar padrão global
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                            <div class="toolbar-item" @mouseenter="setEdgeToolbarHover('copy')" @mouseleave="setEdgeToolbarHover(null)">
+                              <button type="button" class="toolbar-action" @click="copySelectedFormatting" aria-label="Copiar formatação da aresta">
+                                <span class="toolbar-icon" aria-hidden="true">
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="9" y="9" width="10" height="10" rx="2" />
+                                    <rect x="5" y="5" width="10" height="10" rx="2" />
+                                  </svg>
+                                </span>
+                              </button>
+                            </div>
+
+                            <div class="toolbar-item" @mouseenter="setEdgeToolbarHover('paste')" @mouseleave="setEdgeToolbarHover(null)">
+                              <button
+                                type="button"
+                                class="toolbar-action"
+                                :class="{ disabled: !canPasteFormatting }"
+                                :disabled="!canPasteFormatting"
+                                @click="pasteSelectedFormatting"
+                                aria-label="Colar formatação na aresta"
+                              >
+                                <span class="toolbar-icon" aria-hidden="true">
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="6" y="6" width="12" height="14" rx="2" />
+                                    <path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1z" />
+                                    <path d="M12 11v5" />
+                                    <path d="M10.5 14.5L12 16l1.5-1.5" />
+                                  </svg>
+                                </span>
+                              </button>
+                            </div>
+
+                          <div class="toolbar-item" @mouseenter="setEdgeToolbarHover('alignment')" @mouseleave="setEdgeToolbarHover(null)">
+                              <button
+                                type="button"
+                                class="toolbar-action"
+                                :class="{ active: edgeToolbarState.activePopover === 'alignment', disabled: !hasSelectedEdgeLabel }"
+                                :disabled="!hasSelectedEdgeLabel"
+                                :title="hasSelectedEdgeLabel ? 'Alinhamento do rótulo' : 'Adicione um rótulo na aresta para habilitar'"
+                                @click.stop="toggleEdgePopover('alignment')"
+                                aria-label="Alinhamento do rótulo"
+                              >
+                                <span class="toolbar-icon" aria-hidden="true">
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M6 6h12" />
+                                    <path d="M12 6v12" />
+                                    <path d="M8 12h8" />
+                                    <path d="M9.5 16h5" />
+                                  </svg>
+                                </span>
+                              </button>
+                            <div v-if="edgeToolbarState.activePopover === 'alignment'" class="selection-popover selection-popover--compact">
+                              <button type="button" class="chip" :class="{ active: selectedEdge.label?.alignment === 'auto' || !selectedEdge.label?.alignment }" @click="setEdgeLabelAlignment('auto')">Auto</button>
+                              <button type="button" class="chip" :class="{ active: selectedEdge.label?.alignment === 'left' }" @click="setEdgeLabelAlignment('left')">Esq.</button>
+                              <button type="button" class="chip" :class="{ active: selectedEdge.label?.alignment === 'center' }" @click="setEdgeLabelAlignment('center')">Centro</button>
+                              <button type="button" class="chip" :class="{ active: selectedEdge.label?.alignment === 'right' }" @click="setEdgeLabelAlignment('right')">Dir.</button>
+                            </div>
+                          </div>
+
+                            <div class="toolbar-item" @mouseenter="setEdgeToolbarHover('remove')" @mouseleave="setEdgeToolbarHover(null)">
+                              <button type="button" class="toolbar-action danger" @click="removeSelected" aria-label="Remover aresta">
+                                <span class="toolbar-icon" aria-hidden="true">
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M6 7h12" />
+                                    <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                                    <rect x="7" y="7" width="10" height="12" rx="1" />
+                                    <path d="M10 11v6" />
+                                    <path d="M14 11v6" />
+                                  </svg>
+                                </span>
+                              </button>
+                            </div>
+                        </div>
+                        <div v-if="edgeToolbarHint" class="selection-toolbar-hint">{{ edgeToolbarHint }}</div>
+                      </div>
+
+                      <canvas
+                        ref="canvasRef"
+                        width="1280"
+                        height="900"
+                        @mousedown="onCanvasMouseDown"
+                        @mousemove="onCanvasMouseMove"
+                        @mouseup="onCanvasMouseUp"
+                        @mouseleave="onCanvasMouseUp"
+                        @dblclick="onCanvasDblClick"
+                        @wheel.prevent="onCanvasWheel"
+                      ></canvas>
+                      <div class="viewport-controls">
+                        <div class="zoom-group" role="group" aria-label="Controles de zoom">
+                          <button type="button" @click="zoomOut">-</button>
+                          <span>{{ zoomLevel }}%</span>
+                          <button type="button" @click="zoomIn">+</button>
+                        </div>
+                      </div>
+                      <div
+                        v-if="inlineEditor.visible"
+                        class="inline-editor"
+                        :style="{
+                          width: inlineEditor.width + 'px',
+                          height: inlineEditor.height + 'px',
+                          left: inlineEditor.left + 'px',
+                          top: inlineEditor.top + 'px',
+                        }"
+                      >
+                        <div class="inline-editor-body">
+                          <div v-if="inlineEditorLineMarkers" class="inline-editor-gutter" aria-hidden="true">
+                            <pre>{{ inlineEditorLineMarkers }}</pre>
+                          </div>
+                          <textarea
+                            ref="inlineEditorRef"
+                            v-model="inlineEditor.value"
+                            @keydown="handleEditorKeydown"
+                          ></textarea>
+                        </div>
+                        <div class="inline-editor-actions">
+                          <button type="button" @mousedown.prevent @click="confirmInlineEditor">Salvar</button>
+                          <button type="button" @mousedown.prevent @click="closeInlineEditor">Cancelar</button>
+                        </div>
+                      </div>
+                      <p class="canvas-hint">Clique no canvas para {{ currentHint }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+          <aside class="w-full max-w-md border-l border-slate-800 bg-slate-900/80 backdrop-blur">
+            <div class="border-b border-slate-800">
+              <nav class="flex">
+                <button
+                  v-if="inspectorVisible"
+                  type="button"
+                  class="tab"
+                  :class="{ active: sidebarTab === 'inspect' }"
+                  @click="setSidebarTab('inspect')"
+                >
+                  Inspecionar
+                </button>
+                <button
+                  type="button"
+                  class="tab"
+                  :class="{ active: sidebarTab === 'code' }"
+                  @click="setSidebarTab('code')"
+                >
+                  Código
+                </button>
+                <button
+                  type="button"
+                  class="tab"
+                  :class="{ active: sidebarTab === 'preview' }"
+                  @click="setSidebarTab('preview')"
+                >
+                  Preview
+                </button>
+              </nav>
+            </div>
+            <div class="sidebar-body" v-if="sidebarTab === 'inspect' && inspectorVisible">
+              <section
+                class="sidebar-panel"
+                v-if="selected && selected.type === 'node'"
+              >
+                <header><h2>Editar nó</h2></header>
+                <div class="panel-content inspector-content">
+                  <label class="inspector-field">
+                    <span>Rótulo do nó</span>
+                    <textarea
+                      class="inspector-textarea"
+                      rows="5"
+                      v-model="selected.item.label"
+                      @input="invalidateTikz"
+                      @change="commitHistory"
+                    ></textarea>
+                  </label>
+                  <div class="inspector-grid">
+                    <label class="inspector-field">
+                      <span>Cor de preenchimento</span>
+                      <input
+                        type="color"
+                        :value="selected.item.color"
+                        @input="applyNodeFill($event.target.value, { commit: false })"
+                        @change="applyNodeFill($event.target.value, { forceCommit: true })"
+                      >
+                    </label>
+                    <label class="inspector-field">
+                      <span>Cor da borda</span>
+                      <input
+                        type="color"
+                        :value="selected.item.borderColor"
+                        @input="applyNodeBorder($event.target.value, { commit: false })"
+                        @change="applyNodeBorder($event.target.value, { forceCommit: true })"
+                      >
+                    </label>
+                  </div>
+                  <div class="inspector-grid">
+                    <label class="inspector-field">
+                      <span>Espessura da borda</span>
+                      <div class="inspector-slider">
+                        <input
+                          type="range"
+                          min="1"
+                          max="8"
+                          step="0.5"
+                          :value="selected.item.borderWidth"
+                          @input="updateNodeBorderWidth($event.target.value, { commit: false })"
+                          @change="updateNodeBorderWidth($event.target.value, { forceCommit: true })"
+                        >
+                        <span>{{ Number(selected.item.borderWidth ?? 3).toFixed(1) }} px</span>
+                      </div>
+                    </label>
+                    <label class="inspector-field">
+                      <span>Arredondamento</span>
+                      <div class="inspector-slider">
+                        <input
+                          type="range"
+                          min="0"
+                          max="64"
+                          step="1"
+                          :value="selected.item.cornerRadius"
+                          @input="updateNodeCornerRadius($event.target.value, { commit: false })"
+                          @change="updateNodeCornerRadius($event.target.value, { forceCommit: true })"
+                        >
+                        <span>{{ Math.round(Number(selected.item.cornerRadius ?? 16)) }} px</span>
+                      </div>
+                    </label>
+                  </div>
+                  <div class="inspector-grid">
+                    <label class="inspector-field">
+                      <span>Formato</span>
+                      <select
+                        class="form-field"
+                        :value="selected.item.shape"
+                        @change="setNodeShape($event.target.value)"
+                      >
+                        <option v-for="shape in availableShapes" :key="shape.id" :value="shape.id">
+                          {{ shape.label }}
+                        </option>
+                      </select>
+                    </label>
+                    <label class="inspector-field">
+                      <span>Tamanho da fonte</span>
+                      <select
+                        class="form-field"
+                        :value="selected.item.fontSize"
+                        @change="setNodeFontSize($event.target.value)"
+                      >
+                        <option v-for="option in fontSizeOptions" :key="option.value" :value="option.value">
+                          {{ option.label }}
+                        </option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="inspector-actions">
+                    <button type="button" class="btn btn-ghost" @click="copySelectedFormatting">Copiar formatação</button>
+                    <button
+                      type="button"
+                      class="btn btn-ghost"
+                      :disabled="!canPasteFormatting"
+                      @click="pasteSelectedFormatting"
+                    >
+                      Colar formatação
+                    </button>
+                    <button type="button" class="btn btn-ghost danger" @click="removeSelected">Remover nó</button>
+                  </div>
+                </div>
+              </section>
+
+              <section
+                class="sidebar-panel"
+                v-else-if="selected && selected.type === 'edge'"
+              >
+                <header><h2>Editar aresta</h2></header>
+                <div class="panel-content inspector-content">
+                  <div class="inspector-grid">
+                    <label class="inspector-field">
+                      <span>Estilo da linha</span>
+                      <select class="form-field" v-model="selected.item.style" @change="onOptionChange">
+                        <option value="solid">Sólida</option>
+                        <option value="dashed">Tracejada</option>
+                        <option value="dotted">Pontilhada</option>
+                      </select>
+                    </label>
+                    <label class="inspector-field">
+                      <span>Direção</span>
+                      <select class="form-field" v-model="selected.item.direction" @change="onOptionChange">
+                        <option value="->">-&gt;</option>
+                        <option value="<->">&lt;-&gt;</option>
+                        <option value="-">-</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="inspector-grid">
+                    <label class="inspector-field">
+                      <span>Cor da linha</span>
+                      <input type="color" v-model="selected.item.color" @input="invalidateTikz" @change="commitHistory">
+                    </label>
+                    <label class="inspector-field">
+                      <span>Trajeto</span>
+                      <select class="form-field" v-model="selected.item.shape" @change="onOptionChange">
+                        <option value="straight">Reta</option>
+                        <option value="90-vertical">90° (primeiro vertical)</option>
+                        <option value="90-horizontal">90° (primeiro horizontal)</option>
+                        <option value="curva-esquerda">Curva para a esquerda</option>
+                        <option value="curva-direita">Curva para a direita</option>
+                      </select>
+                    </label>
+                  </div>
+                  <label
+                    class="inspector-field"
+                    v-if="selected.item.shape === 'curva-esquerda' || selected.item.shape === 'curva-direita'"
+                  >
+                    <span>Curvatura</span>
+                    <div class="inspector-slider">
+                      <input
+                        type="range"
+                        min="10"
+                        max="60"
+                        v-model="selected.item.bend"
+                        @input="invalidateTikz"
+                        @change="commitHistory"
+                      >
+                      <span>{{ selected.item.bend }}°</span>
+                    </div>
+                  </label>
+                  <label class="inspector-field">
+                    <span>Espessura da aresta</span>
+                    <div class="inspector-slider">
+                      <input
+                        type="range"
+                        min="1"
+                        max="8"
+                        step="0.5"
+                        :value="selected.item.thickness ?? edgeThickness"
+                        @input="updateSelectedEdgeThickness($event.target.value, { commit: false })"
+                        @change="updateSelectedEdgeThickness($event.target.value, { forceCommit: true })"
+                      >
+                      <span>
+                        {{
+                          selected.item.thickness
+                            ? Number(selected.item.thickness).toFixed(1) + ' px'
+                            : 'Padrão: ' + edgeThicknessDisplay
+                        }}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn btn-ghost mt-2"
+                      @click="clearEdgeThickness"
+                      :disabled="selected.item.thickness == null"
+                    >
+                      Usar espessura padrão
+                    </button>
+                  </label>
+                  <div class="inspector-grid" v-if="selected.item.label?.text">
+                    <label class="inspector-field">
+                      <span>Cor do rótulo</span>
+                      <input
+                        type="color"
+                        :value="selected.item.label?.color || '#e2e8f0'"
+                        @input="updateEdgeLabelColor($event.target.value)"
+                        @change="commitHistory"
+                      >
+                    </label>
+                    <label class="inspector-field">
+                      <span>Alinhamento do rótulo</span>
+                      <select
+                        class="form-field"
+                        :value="selected.item.label?.alignment || 'auto'"
+                        @change="setEdgeLabelAlignment($event.target.value)"
+                      >
+                        <option value="auto">Automático</option>
+                        <option value="left">Esquerda</option>
+                        <option value="center">Centralizado</option>
+                        <option value="right">Direita</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="inspector-actions">
+                    <button type="button" class="btn btn-ghost" @click="flipEdgeDirection">Inverter direção</button>
+                    <button type="button" class="btn btn-ghost" @click="copySelectedFormatting">Copiar formatação</button>
+                    <button
+                      type="button"
+                      class="btn btn-ghost"
+                      :disabled="!canPasteFormatting"
+                      @click="pasteSelectedFormatting"
+                    >
+                      Colar formatação
+                    </button>
+                    <button type="button" class="btn btn-ghost danger" @click="removeSelected">Remover aresta</button>
+                  </div>
+                </div>
+              </section>
+
+              <section class="sidebar-panel" v-else>
+                <header><h2>Nenhum elemento selecionado</h2></header>
+                <div class="empty-state">Selecione um nó ou uma aresta para ver suas propriedades.</div>
+              </section>
+            </div>
+
+            <div class="sidebar-body" v-else-if="sidebarTab === 'code'">
+              <div class="sidebar-panel space-y-4">
+                <header><h2>Código TikZ</h2></header>
+                <div class="code-panel-toggle space-y-2">
+                  <p class="text-sm text-slate-400">
+                    Ajuste a atualização automática do código pelo menu <strong>Configurações</strong> na barra lateral esquerda.
+                  </p>
+                  <p v-if="tikzUpdatePending" class="code-panel-toggle-hint">
+                    Há alterações não refletidas no código. Reative a atualização automática para gerar novamente.
+                  </p>
+                </div>
+                <textarea readonly :value="tikzCode" aria-label="Código gerado" class="code-view"></textarea>
+              </div>
+            </div>
+
+            <div class="sidebar-body" v-else>
+              <div class="sidebar-panel">
+                <header class="preview-header">
+                  <div>
+                    <h2>Pré-visualização</h2>
+                    <p v-if="isPreviewDirty && tikzCode" class="preview-dirty-hint">
+                      Há alterações não renderizadas. Clique em <strong>Renderizar</strong> para atualizar.
+                    </p>
+                  </div>
+                  <div class="preview-header-actions">
+                    <div class="preview-zoom-controls">
+                      <button
+                        type="button"
+                        class="btn btn-icon"
+                        @click="zoomPreviewOut"
+                        :disabled="!hasPreviewContent"
+                        aria-label="Reduzir zoom da pré-visualização"
+                      >
+                        −
+                      </button>
+                      <span class="preview-zoom-indicator">{{ previewZoomLevel }}%</span>
+                      <button
+                        type="button"
+                        class="btn btn-icon"
+                        @click="zoomPreviewIn"
+                        :disabled="!hasPreviewContent"
+                        aria-label="Aumentar zoom da pré-visualização"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn btn-primary"
+                      @click="renderPreview"
+                      :disabled="!tikzCode || !isPreviewDirty"
+                    >
+                      Renderizar
+                    </button>
+                  </div>
+                </header>
+                <div class="preview-content">
+                  <div v-if="hasPreviewContent" class="preview-frame">
+                    <div
+                      class="preview-viewport"
+                      ref="previewViewportRef"
+                      :class="{ 'is-panning': isPreviewPanning }"
+                      @pointerdown="onPreviewPointerDown"
+                      @pointermove="onPreviewPointerMove"
+                      @pointerup="onPreviewPointerUp"
+                      @pointercancel="onPreviewPointerCancel"
+                      @pointerleave="onPreviewPointerCancel"
+                      @wheel="onPreviewWheel"
+                      @contextmenu.prevent
+                      role="presentation"
+                    >
+                      <div
+                        class="preview-stage"
+                        :style="previewStageStyle"
+                        ref="previewStageRef"
+                      >
+                        <iframe
+                          title="Pré-visualização da figura"
+                          :srcdoc="preview.srcdoc"
+                          sandbox="allow-scripts allow-same-origin"
+                          loading="lazy"
+                        ></iframe>
+                      </div>
+                    </div>
+                  </div>
+                  <p v-else class="preview-placeholder">
+                    O diagrama renderizado aparecerá aqui após clicar em <strong>Renderizar</strong>.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </main>
       </div>
-    </header>
+    </div>
 
     <input
       type="file"
@@ -61,291 +1372,236 @@
       accept="application/json"
       @change="handleDiagramFileChange"
     >
+    <input
+      type="file"
+      ref="matrixFileInputRef"
+      class="sr-only"
+      accept=".csv,.txt,text/csv"
+      multiple
+      @change="handleMatrixFileChange"
+    >
 
-    <main class="app-body">
-      <section class="workspace">
-        <div class="toolbar" role="radiogroup" aria-label="Ferramentas de edição">
-          <div class="tool-with-menu">
-            <button
-              ref="nodeMenuButtonRef"
-              type="button"
-              :aria-expanded="showNodeMenu"
-              :class="['tool-btn', showNodeMenu ? 'active' : '', 'blue']"
-              @click="toggleNodeMenu"
-            >
-              <span class="tool-icon">➕</span>
-              <span class="tool-label">Novo nó</span>
-            </button>
-            <div v-if="showNodeMenu" ref="nodeMenuRef" class="node-menu">
+    <transition name="fade">
+      <div
+        v-if="showSettingsDialog"
+        id="settings-dialog"
+        class="settings-modal-backdrop"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Configurações do editor"
+        @click.self="closeSettingsDialog"
+      >
+        <section class="settings-modal">
+          <header class="settings-modal-header">
+            <div>
+              <h2>Configurações</h2>
+              <p>Gerencie preferências globais do TikZ Editor.</p>
+            </div>
+            <button type="button" class="btn btn-icon" @click="closeSettingsDialog" aria-label="Fechar configurações">✕</button>
+          </header>
+          <div class="settings-modal-body">
+            <div class="settings-item">
+              <div>
+                <p class="settings-item-title">Atualizar TikZ automaticamente</p>
+                <p class="settings-item-subtitle">Gera o código conforme você edita o diagrama.</p>
+              </div>
               <button
-                v-for="shape in availableShapes"
-                :key="shape.id"
                 type="button"
-                @click="createNodeFromMenu(shape.id)"
+                class="settings-switch"
+                role="switch"
+                :aria-checked="autoUpdateTikz ? 'true' : 'false'"
+                @click="toggleAutoUpdateTikz"
+                :class="autoUpdateTikz ? 'settings-switch--active' : ''"
               >
-                {{ shape.label }}
+                <span class="sr-only">Alternar atualização automática do TikZ</span>
+                <span
+                  aria-hidden="true"
+                  class="settings-switch-thumb"
+                  :class="autoUpdateTikz ? 'settings-switch-thumb--active' : ''"
+                ></span>
               </button>
             </div>
-          </div>
-          <button
-            v-for="tool in tools"
-            :key="tool.mode"
-            type="button"
-            :aria-pressed="mode === tool.mode"
-            :class="['tool-btn', mode === tool.mode ? 'active' : '', tool.accent]"
-            @click="changeMode(tool.mode)"
-          >
-            <span class="tool-icon">{{ tool.icon }}</span>
-            <span class="tool-label">{{ tool.label }}</span>
-          </button>
-        </div>
-
-        <div class="canvas-wrapper" ref="canvasWrapperRef" :class="{ 'is-panning': isPanningActive }">
-          <canvas
-            ref="canvasRef"
-            width="1280"
-            height="720"
-            @mousedown="onCanvasMouseDown"
-            @mousemove="onCanvasMouseMove"
-            @mouseup="onCanvasMouseUp"
-            @mouseleave="onCanvasMouseUp"
-            @dblclick="onCanvasDblClick"
-            @wheel.prevent="onCanvasWheel"
-          ></canvas>
-          <div class="viewport-controls">
-            <button type="button" @click="zoomOut">-</button>
-            <span>{{ zoomLevel }}%</span>
-            <button type="button" @click="zoomIn">+</button>
-            <button type="button" @click="resetView">Resetar</button>
-            <button type="button" v-if="frame" @click="focusFrame">Enquadrar frame</button>
-          </div>
-          <div
-            v-if="inlineEditor.visible"
-            class="inline-editor"
-            :style="{
-              width: inlineEditor.width + 'px',
-              height: inlineEditor.height + 'px',
-              left: inlineEditor.left + 'px',
-              top: inlineEditor.top + 'px',
-            }"
-          >
-            <textarea
-              ref="inlineEditorRef"
-              v-model="inlineEditor.value"
-              @keydown="handleEditorKeydown"
-            ></textarea>
-            <div class="inline-editor-actions">
-              <button type="button" @mousedown.prevent @click="confirmInlineEditor">Salvar</button>
-              <button type="button" @mousedown.prevent @click="closeInlineEditor">Cancelar</button>
-            </div>
-          </div>
-          <p class="canvas-hint">Clique no canvas para {{ currentHint }}</p>
-        </div>
-
-        <div class="panel-grid">
-          <section class="panel">
-            <header><h2>Detalhes do Nó</h2></header>
-            <div v-if="selected?.type === 'node'" class="panel-content">
-              <label>
-                Texto
-                <input type="text" v-model="selected.item.label" @input="invalidateTikz" @change="commitHistory">
-              </label>
-              <label>
-                Cor de preenchimento
-                <input type="color" v-model="selected.item.color" @input="invalidateTikz" @change="commitHistory">
-              </label>
-              <label>
-                Cor da borda
-                <input type="color" v-model="selected.item.borderColor" @input="invalidateTikz" @change="commitHistory">
-              </label>
-              <label>
-                Forma
-                <select v-model="selected.item.shape" @change="onOptionChange">
-                  <option value="circle">Círculo</option>
-                  <option value="rectangle">Retângulo</option>
-                  <option value="decision">Nó de decisão</option>
-                  <option value="diamond">Losango</option>
-                  <option value="triangle">Triângulo</option>
-                </select>
-              </label>
-              <label>
-                Tamanho da fonte
-                <select v-model="selected.item.fontSize" @change="onOptionChange">
-                  <option value="12">Pequena</option>
-                  <option value="16">Média</option>
-                  <option value="20">Grande</option>
-                </select>
-              </label>
-              <button class="ghost" @click="removeSelected">Remover Nó</button>
-            </div>
-            <div v-else class="empty-state">Selecione um nó para editar seus detalhes.</div>
-          </section>
-
-          <section class="panel">
-            <header><h2>Detalhes da Aresta</h2></header>
-            <div v-if="selected?.type === 'edge'" class="panel-content">
-              <label>
-                Estilo de linha
-                <select v-model="selected.item.style" @change="onOptionChange">
-                  <option value="solid">Sólida</option>
-                  <option value="dashed">Tracejada</option>
-                  <option value="dotted">Pontilhada</option>
-                </select>
-              </label>
-              <label>
-                Cor da linha
-                <input type="color" v-model="selected.item.color" @input="invalidateTikz" @change="commitHistory">
-              </label>
-              <label>
-                Direção
-                <select v-model="selected.item.direction" @change="onOptionChange">
-                  <option value="->">-&gt;</option>
-                  <option value="<->">&lt;-&gt;</option>
-                  <option value="-">-</option>
-                </select>
-              </label>
-              <label>
-                Trajeto
-                <select v-model="selected.item.shape" @change="onOptionChange">
-                  <option value="straight">Reta</option>
-                  <option value="90-vertical">90° (primeiro vertical)</option>
-                  <option value="90-horizontal">90° (primeiro horizontal)</option>
-                  <option value="curva-esquerda">Curva para a esquerda</option>
-                  <option value="curva-direita">Curva para a direita</option>
-                </select>
-              </label>
-              <label v-if="selected.item.shape === 'curva-esquerda' || selected.item.shape === 'curva-direita'">
-                Curvatura
-                <input type="range" min="10" max="60" v-model="selected.item.bend" @input="invalidateTikz" @change="commitHistory">
-              </label>
-              <label v-if="selected.item.label?.text">
-                Cor do texto da etiqueta
-                <input
-                  type="color"
-                  :value="selected.item.label?.color || '#e2e8f0'"
-                  @input="updateEdgeLabelColor($event.target.value)"
-                  @change="commitHistory"
+            <div class="settings-item">
+              <div>
+                <p class="settings-item-title">Tema do editor</p>
+                <p class="settings-item-subtitle">Escolha entre modo claro ou escuro.</p>
+              </div>
+              <div class="settings-segmented" role="group" aria-label="Alternar tema">
+                <button
+                  type="button"
+                  :class="{ active: currentTheme === 'dark' }"
+                  @click="setTheme('dark')"
                 >
-              </label>
-              <p v-if="selected.item.label?.text" class="panel-hint">Arraste o texto diretamente no canvas para ajustar sua posição.</p>
-              <button class="ghost" @click="removeSelected">Remover Aresta</button>
-            </div>
-            <div v-else class="empty-state">Selecione uma aresta para ajustar suas opções.</div>
-          </section>
-
-          <section class="panel">
-            <header><h2>Caixa de Texto</h2></header>
-            <div v-if="selected?.type === 'text'" class="panel-content">
-              <p>Use duplo clique sobre a caixa para editar seu conteúdo.</p>
-              <label>
-                Conteúdo
-                <textarea
-                  rows="4"
-                  v-model="selected.item.text"
-                  @input="invalidateTikz"
-                  @change="commitHistory"
-                ></textarea>
-              </label>
-              <label>
-                Largura (px)
-                <input
-                  type="number"
-                  min="96"
-                  v-model.number="selected.item.width"
-                  @input="invalidateTikz"
-                  @change="commitHistory"
+                  Escuro
+                </button>
+                <button
+                  type="button"
+                  :class="{ active: currentTheme === 'light' }"
+                  @click="setTheme('light')"
                 >
-              </label>
-              <label>
-                Altura (px)
-                <input
-                  type="number"
-                  min="60"
-                  v-model.number="selected.item.height"
-                  @input="invalidateTikz"
-                  @change="commitHistory"
-                >
-              </label>
-              <label>
-                Tamanho da fonte
-                <input
-                  type="number"
-                  min="12"
-                  max="28"
-                  v-model.number="selected.item.fontSize"
-                  @input="invalidateTikz"
-                  @change="commitHistory"
-                >
-              </label>
-              <button class="ghost" @click="openTextBlockEditor(selected.item)">Editar texto</button>
-              <button class="ghost" @click="removeSelected">Remover Caixa de Texto</button>
-            </div>
-            <div v-else class="empty-state">Selecione uma caixa de texto para ajustar seu formato.</div>
-          </section>
-
-          <section class="panel">
-            <header><h2>Frame da Figura</h2></header>
-            <div v-if="frame" class="panel-content frame-panel">
-              <label>
-                Posição X
-                <input type="number" v-model.number="frame.x" @change="commitHistory">
-              </label>
-              <label>
-                Posição Y
-                <input type="number" v-model.number="frame.y" @change="commitHistory">
-              </label>
-              <label>
-                Largura
-                <input type="number" min="64" v-model.number="frame.width" @change="commitHistory">
-              </label>
-              <label>
-                Altura
-                <input type="number" min="64" v-model.number="frame.height" @change="commitHistory">
-              </label>
-              <div class="frame-actions">
-                <button type="button" class="ghost" @click="focusFrame">Enquadrar</button>
-                <button type="button" class="ghost danger" @click="removeFrame">Remover frame</button>
+                  Claro
+                </button>
               </div>
             </div>
-            <div v-else class="empty-state">
-              <p>Crie um frame para limitar a área renderizada e definir a escala da figura.</p>
-              <button class="ghost" type="button" @click="createFrame">Criar frame padrão</button>
-            </div>
-          </section>
-        </div>
-      </section>
-
-      <aside class="sidebar">
-        <section class="panel">
-          <header><h2>Status</h2></header>
-          <div class="panel-content">
-            <p>{{ statusMessage }}</p>
-            <ul class="tips">
-              <li>Use CTRL/CMD + Clique para selecionar múltiplos itens (em breve).</li>
-              <li>Arraste nós utilizando a ferramenta <strong>Mover</strong>.</li>
-            </ul>
           </div>
         </section>
-        <section class="panel template-panel">
-          <header><h2>Modelos rápidos</h2></header>
-          <div class="panel-content template-list">
-            <article v-for="template in templates" :key="template.id" class="template-card">
+      </div>
+    </transition>
+
+    <transition name="fade">
+      <div
+        v-if="showTemplateBrowser"
+        class="template-browser-backdrop"
+        role="presentation"
+        @click.self="closeTemplateBrowser"
+      >
+        <section class="template-browser" role="dialog" aria-modal="true" aria-label="Galeria de templates">
+          <header class="template-browser-header">
+            <div>
+              <h2>Templates</h2>
+              <p>Carregue um modelo pronto como ponto de partida para o seu diagrama.</p>
+            </div>
+            <button type="button" class="btn btn-icon" @click="closeTemplateBrowser" aria-label="Fechar templates">✕</button>
+          </header>
+          <div class="template-browser-list">
+            <article v-for="template in templates" :key="template.id" class="template-browser-card">
               <div class="template-card-body">
                 <h3>{{ template.name }}</h3>
                 <p>{{ template.description }}</p>
               </div>
-              <button type="button" class="ghost" @click="applyTemplate(template.id)">
-                Carregar modelo
+              <button type="button" class="btn btn-primary" @click="applyTemplate(template.id)">
+                Carregar
               </button>
             </article>
           </div>
         </section>
-        <section class="panel code-panel">
-          <header><h2>Código TikZ</h2></header>
-          <textarea readonly :value="tikzCode" aria-label="Código gerado"></textarea>
+      </div>
+    </transition>
+
+    <transition name="fade">
+      <div
+        v-if="matrixPrompt.visible"
+        class="matrix-import-backdrop"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Fornecer dados da matriz"
+        @click.self="closeMatrixPrompt"
+      >
+        <section class="matrix-import-modal matrix-import-modal--prompt">
+          <header class="matrix-import-header">
+            <div>
+              <h2>Importar matriz</h2>
+              <p>Cole os dados da matriz ou selecione um arquivo TXT/CSV.</p>
+            </div>
+            <button
+              type="button"
+              class="btn btn-icon"
+              @click="closeMatrixPrompt"
+              aria-label="Cancelar importação da matriz"
+            >
+              ✕
+            </button>
+          </header>
+          <div class="matrix-import-body matrix-import-body--prompt">
+            <label class="matrix-import-label" for="matrix-import-textarea">
+              Cole os valores da matriz abaixo. Use vírgula, ponto e vírgula ou espaço para separar os valores.
+            </label>
+            <textarea
+              id="matrix-import-textarea"
+              ref="matrixPromptTextAreaRef"
+              v-model="matrixPrompt.text"
+              rows="8"
+              spellcheck="false"
+              placeholder="1 0 0&#10;0 1 0&#10;0 0 1"
+            ></textarea>
+            <p v-if="matrixPrompt.error" class="matrix-import-error" role="alert">{{ matrixPrompt.error }}</p>
+            <div class="matrix-import-upload">
+              <button type="button" class="btn btn-ghost" @click="triggerMatrixFileSelection">
+                Escolher arquivo TXT ou CSV
+              </button>
+              <p>ou cole o conteúdo diretamente no campo acima.</p>
+            </div>
+          </div>
+          <footer class="matrix-import-footer">
+            <button type="button" class="btn btn-ghost" @click="closeMatrixPrompt">Cancelar</button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              @click="confirmMatrixPrompt"
+              :disabled="!canSubmitMatrixPrompt"
+            >
+              Continuar
+            </button>
+          </footer>
         </section>
-      </aside>
-    </main>
+      </div>
+    </transition>
+
+    <transition name="fade">
+      <div
+        v-if="matrixImport.visible"
+        class="matrix-import-backdrop"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Mapear cores para a matriz importada"
+        @click.self="cancelMatrixImport"
+      >
+        <section class="matrix-import-modal">
+          <header class="matrix-import-header">
+            <div>
+              <h2>Importar matriz</h2>
+              <p>
+                Defina as cores para cada valor detectado em
+                <strong>{{ matrixImport.fileName || 'arquivo selecionado' }}</strong>.
+              </p>
+            </div>
+            <button
+              type="button"
+              class="btn btn-icon"
+              @click="cancelMatrixImport"
+              aria-label="Cancelar importação da matriz"
+            >
+              ✕
+            </button>
+          </header>
+          <div class="matrix-import-body">
+            <p v-if="!matrixImport.values.length" class="matrix-import-empty">
+              Nenhum valor foi encontrado na matriz selecionada.
+            </p>
+            <div v-else class="matrix-import-grid" role="list">
+              <div
+                v-for="value in matrixImport.values"
+                :key="`matrix-color-${value}`"
+                class="matrix-import-row"
+                role="listitem"
+              >
+                <span class="matrix-import-value" aria-hidden="true">{{ value }}</span>
+                <label class="sr-only" :for="`matrix-color-${value}`">
+                  Cor para o valor {{ value }}
+                </label>
+                <input
+                  :id="`matrix-color-${value}`"
+                  type="color"
+                  :value="matrixImport.colorMap[value] || '#000000'"
+                  @input="updateMatrixImportColor(value, $event.target.value)"
+                >
+              </div>
+            </div>
+          </div>
+          <footer class="matrix-import-footer">
+            <button type="button" class="btn btn-ghost" @click="cancelMatrixImport">Cancelar</button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              @click="confirmMatrixImport"
+              :disabled="!canConfirmMatrixImport"
+            >
+              Confirmar
+            </button>
+          </footer>
+        </section>
+      </div>
+    </transition>
   </div>
 
   <script type="module" src="main.js"></script>

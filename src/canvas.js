@@ -15,7 +15,42 @@ const FRAME_HANDLE_SIZE = 16;
 const FRAME_HIT_PADDING = 12;
 
 const CARDINAL_DIRECTIONS = ['north', 'east', 'south', 'west'];
+const RECTANGLE_CORNER_DIRECTIONS = ['northeast', 'southeast', 'southwest', 'northwest'];
 const getNodeBounds = computeNodeBounds;
+
+const THEME_PALETTE = {
+  dark: {
+    canvasBackground: '#0f172a',
+    gridStroke: 'rgba(148, 163, 184, 0.12)',
+    matrixGridStroke: 'rgba(15, 23, 42, 0.35)',
+    matrixCellFallback: '#0f172a',
+    textBlockFill: 'rgba(15, 23, 42, 0.82)',
+    textBlockStroke: 'rgba(148, 163, 184, 0.35)',
+    textBlockText: '#e2e8f0',
+  },
+  light: {
+    canvasBackground: '#ffffff',
+    gridStroke: 'rgba(148, 163, 184, 0.22)',
+    matrixGridStroke: 'rgba(148, 163, 184, 0.45)',
+    matrixCellFallback: '#e2e8f0',
+    textBlockFill: 'rgba(248, 250, 252, 0.92)',
+    textBlockStroke: 'rgba(148, 163, 184, 0.55)',
+    textBlockText: '#0f172a',
+  },
+};
+
+function getMatrixGridSize(grid) {
+  const rows = Array.isArray(grid?.data) ? grid.data.length : 0;
+  const columns = rows > 0 && Array.isArray(grid.data[0]) ? grid.data[0].length : 0;
+  const cellSize = Number(grid?.cellSize) || 0;
+  return {
+    rows,
+    columns,
+    cellSize,
+    width: columns * cellSize,
+    height: rows * cellSize,
+  };
+}
 
 function getAnchorPoint(node, direction) {
   const { halfWidth, halfHeight } = getNodeDimensions(node);
@@ -28,16 +63,34 @@ function getAnchorPoint(node, direction) {
       return { x: node.x + halfWidth, y: node.y };
     case 'west':
       return { x: node.x - halfWidth, y: node.y };
+    case 'northeast':
+      return { x: node.x + halfWidth, y: node.y - halfHeight };
+    case 'southeast':
+      return { x: node.x + halfWidth, y: node.y + halfHeight };
+    case 'southwest':
+      return { x: node.x - halfWidth, y: node.y + halfHeight };
+    case 'northwest':
+      return { x: node.x - halfWidth, y: node.y - halfHeight };
     default:
       return { x: node.x, y: node.y };
   }
 }
 
 function getAnchorPoints(node) {
-  return CARDINAL_DIRECTIONS.map(direction => ({
+  const baseAnchors = CARDINAL_DIRECTIONS.map(direction => ({
     direction,
     point: getAnchorPoint(node, direction),
   }));
+
+  if (node.shape === 'rectangle') {
+    const cornerAnchors = RECTANGLE_CORNER_DIRECTIONS.map(direction => ({
+      direction,
+      point: getAnchorPoint(node, direction),
+    }));
+    return [...baseAnchors, ...cornerAnchors];
+  }
+
+  return baseAnchors;
 }
 const TEXT_BLOCK_MIN_WIDTH = 96;
 const TEXT_BLOCK_MIN_HEIGHT = 60;
@@ -56,6 +109,22 @@ export function createCanvasRenderer(canvas, state) {
     width: 0,
     height: 0,
   };
+
+  function getThemePalette() {
+    return state.theme === 'light' ? THEME_PALETTE.light : THEME_PALETTE.dark;
+  }
+
+  function isNodeSelected(nodeId) {
+    if (state.selected?.type !== 'node') {
+      return false;
+    }
+    const items = state.selected?.items;
+    if (Array.isArray(items)) {
+      return items.some(item => item?.id === nodeId);
+    }
+    const item = state.selected?.item;
+    return item?.id === nodeId;
+  }
 
   function getCameraScale() {
     return state.camera?.scale || 1;
@@ -102,6 +171,16 @@ export function createCanvasRenderer(canvas, state) {
     return { left, top, right, bottom };
   }
 
+  function worldToScreen(x, y) {
+    const scale = getCameraScale();
+    const offsetX = state.camera?.offsetX || 0;
+    const offsetY = state.camera?.offsetY || 0;
+    return {
+      x: x * scale + offsetX,
+      y: y * scale + offsetY,
+    };
+  }
+
   function isPointInsideFrame(x, y, padding = 0) {
     const frame = state.frame;
     if (!frame) return true;
@@ -133,8 +212,8 @@ export function createCanvasRenderer(canvas, state) {
 
     ctx.save();
     const scale = getCameraScale();
-    const thickness = state.edgeThickness || 2.5;
-    ctx.lineWidth = thickness / scale;
+    const edgeThickness = Number(edge.thickness) || state.edgeThickness || 2.5;
+    ctx.lineWidth = edgeThickness / scale;
     const baseColor = edge.color || 'rgba(148, 163, 184, 0.85)';
     const strokeColor = state.selected?.item?.id === edge.id ? '#38bdf8' : baseColor;
     ctx.strokeStyle = strokeColor;
@@ -163,10 +242,16 @@ export function createCanvasRenderer(canvas, state) {
     ctx.setLineDash([]);
 
     if (edge.direction && edge.direction.includes('>')) {
-      drawArrowHead(geometry.endPoint, geometry.endAngle, edge, strokeColor);
+      drawArrowHead(geometry.endPoint, geometry.endAngle, edge, strokeColor, edgeThickness);
     }
     if (edge.direction && edge.direction.startsWith('<')) {
-      drawArrowHead(geometry.startPoint, geometry.startAngle + Math.PI, edge, strokeColor);
+      drawArrowHead(
+        geometry.startPoint,
+        geometry.startAngle + Math.PI,
+        edge,
+        strokeColor,
+        edgeThickness
+      );
     }
 
     if (edge.label?.text) {
@@ -184,10 +269,10 @@ export function createCanvasRenderer(canvas, state) {
     ctx.restore();
   }
 
-  function drawArrowHead(point, angle, edge, strokeColor) {
+  function drawArrowHead(point, angle, edge, strokeColor, thicknessOverride) {
     const scale = getCameraScale();
-    const thickness = state.edgeThickness || 2.5;
-    const factor = thickness / 2.5;
+    const baseThickness = Number(thicknessOverride) || state.edgeThickness || 2.5;
+    const factor = baseThickness / 2.5;
     const size = (12 * factor) / scale;
     const offset = (isCurvedShape(edge.shape) ? 6 : 0) / scale;
     const targetX = point.x - Math.cos(angle) * offset;
@@ -222,7 +307,7 @@ export function createCanvasRenderer(canvas, state) {
   function drawNodeBase(node) {
     ctx.save();
     const scale = getCameraScale();
-    const isSelected = state.selected?.type === 'node' && state.selected?.item?.id === node.id;
+    const isSelected = isNodeSelected(node.id);
     const isHovered = state.hoverNodeId === node.id;
     const isOrigin = state.edgeDraft?.from?.nodeId === node.id;
     const targetInfo = state.edgeDraft?.target;
@@ -237,7 +322,14 @@ export function createCanvasRenderer(canvas, state) {
       return withAlpha(baseStroke, 1);
     })();
 
-    ctx.lineWidth = (isTarget ? 3.6 : 3) / scale;
+    const baseWidth = Number(node.borderWidth) || 3;
+    const width = (() => {
+      if (isTarget) return baseWidth + 1.2;
+      if (isSelected || isOrigin) return baseWidth + 0.6;
+      if (isHovered) return baseWidth + 0.3;
+      return baseWidth;
+    })();
+    ctx.lineWidth = Math.max(width, 1) / scale;
     ctx.strokeStyle = strokeColor;
     ctx.fillStyle = node.color || '#e2e8f0';
 
@@ -255,8 +347,34 @@ export function createCanvasRenderer(canvas, state) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
+    const { halfWidth } = getNodeDimensions(node);
+    const maxTextWidth = Math.max(halfWidth * 2 - fontSize, 24);
+    const ellipsis = '…';
+
+    const truncatedLines = lines.map(line => {
+      const content = line ?? '';
+      if (ctx.measureText(content).width <= maxTextWidth) {
+        return content;
+      }
+      let low = 0;
+      let high = content.length;
+      let best = ellipsis;
+      while (low <= high) {
+        const mid = Math.floor((low + high) / 2);
+        const slice = content.slice(0, mid).trimEnd();
+        const candidate = slice ? `${slice}${ellipsis}` : ellipsis;
+        if (ctx.measureText(candidate).width <= maxTextWidth) {
+          best = candidate;
+          low = mid + 1;
+        } else {
+          high = mid - 1;
+        }
+      }
+      return best;
+    });
+
     let offsetY = node.y - totalHeight / 2;
-    lines.forEach(line => {
+    truncatedLines.forEach(line => {
       ctx.fillText(line, node.x, offsetY);
       offsetY += lineHeight;
     });
@@ -265,7 +383,7 @@ export function createCanvasRenderer(canvas, state) {
 
   function drawNodeHandles(node) {
     const scale = getCameraScale();
-    const isSelected = state.selected?.type === 'node' && state.selected?.item?.id === node.id;
+    const isSelected = isNodeSelected(node.id);
     const isHovered = state.hoverNodeId === node.id;
     const isOrigin = state.edgeDraft?.from?.nodeId === node.id;
     const targetInfo = state.edgeDraft?.target;
@@ -319,8 +437,9 @@ export function createCanvasRenderer(canvas, state) {
     const isSelected = state.selected?.item?.id === block.id;
     const thickness = state.edgeThickness || 2.5;
     ctx.lineWidth = thickness / scale;
-    ctx.strokeStyle = isSelected ? '#38bdf8' : 'rgba(148, 163, 184, 0.35)';
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+    const palette = getThemePalette();
+    ctx.strokeStyle = isSelected ? '#38bdf8' : palette.textBlockStroke;
+    ctx.fillStyle = palette.textBlockFill;
 
     const radius = 12;
     const path = roundedRectPath(block.x, block.y, block.width, block.height, radius);
@@ -336,7 +455,7 @@ export function createCanvasRenderer(canvas, state) {
       block.height - TEXT_BLOCK_PADDING * 2
     );
     ctx.clip();
-    ctx.fillStyle = '#e2e8f0';
+    ctx.fillStyle = palette.textBlockText;
     ctx.font = `${block.fontWeight || 500} ${block.fontSize || 16}px Inter, system-ui`;
     ctx.textBaseline = 'top';
     ctx.textAlign = 'left';
@@ -432,7 +551,14 @@ export function createCanvasRenderer(canvas, state) {
     const halfHeight = NODE_HEIGHT / 2;
     switch (node.shape) {
       case 'rectangle':
-        addRoundedRect(path, node.x - halfWidth, node.y - halfHeight, NODE_WIDTH, NODE_HEIGHT, 16);
+        addRoundedRect(
+          path,
+          node.x - halfWidth,
+          node.y - halfHeight,
+          NODE_WIDTH,
+          NODE_HEIGHT,
+          Math.max(0, node.cornerRadius ?? 16)
+        );
         break;
       case 'triangle': {
         path.moveTo(node.x, node.y - halfHeight);
@@ -608,7 +734,8 @@ export function createCanvasRenderer(canvas, state) {
   function draw() {
     resetTransform();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#0f172a';
+    const palette = getThemePalette();
+    ctx.fillStyle = palette.canvasBackground;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     drawGrid();
@@ -624,7 +751,59 @@ export function createCanvasRenderer(canvas, state) {
     ctx.restore();
   }
 
+  function drawMatrixGrid(grid) {
+    const { rows, columns, cellSize, width, height } = getMatrixGridSize(grid);
+    if (!rows || !columns || !cellSize) return;
+
+    const palette = getThemePalette();
+
+    for (let row = 0; row < rows; row += 1) {
+      const rowData = Array.isArray(grid.data[row]) ? grid.data[row] : [];
+      for (let col = 0; col < columns; col += 1) {
+        const key = rowData[col];
+        const color = grid.colorMap?.[String(key)] || palette.matrixCellFallback;
+        ctx.fillStyle = color;
+        const x = grid.x + col * cellSize;
+        const y = grid.y + row * cellSize;
+        ctx.fillRect(x, y, cellSize, cellSize);
+      }
+    }
+
+    const scale = getCameraScale();
+    ctx.save();
+    ctx.lineWidth = Math.max(0.75 / scale, 0.4);
+    ctx.strokeStyle = palette.matrixGridStroke;
+    ctx.beginPath();
+    for (let col = 0; col <= columns; col += 1) {
+      const x = grid.x + col * cellSize;
+      ctx.moveTo(x, grid.y);
+      ctx.lineTo(x, grid.y + height);
+    }
+    for (let row = 0; row <= rows; row += 1) {
+      const y = grid.y + row * cellSize;
+      ctx.moveTo(grid.x, y);
+      ctx.lineTo(grid.x + width, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    if (state.selected?.type === 'matrix' && state.selected.item?.id === grid.id) {
+      ctx.save();
+      const padding = 4 / scale;
+      ctx.lineWidth = 2 / scale;
+      ctx.strokeStyle = '#38bdf8';
+      ctx.strokeRect(
+        grid.x - padding,
+        grid.y - padding,
+        width + padding * 2,
+        height + padding * 2
+      );
+      ctx.restore();
+    }
+  }
+
   function drawScene() {
+    (state.matrixGrids || []).forEach(drawMatrixGrid);
     state.edges.forEach(drawEdge);
     state.nodes.forEach(drawNodeBase);
     state.textBlocks?.forEach(drawTextBlock);
@@ -701,7 +880,8 @@ export function createCanvasRenderer(canvas, state) {
     applyCameraTransform();
     ctx.beginPath();
     ctx.lineWidth = 1 / scale;
-    ctx.strokeStyle = 'rgba(148, 163, 184, 0.12)';
+    const palette = getThemePalette();
+    ctx.strokeStyle = palette.gridStroke;
     for (let x = startX; x <= right; x += GRID_SPACING) {
       ctx.moveTo(x, top);
       ctx.lineTo(x, bottom);
@@ -712,6 +892,38 @@ export function createCanvasRenderer(canvas, state) {
     }
     ctx.stroke();
     ctx.restore();
+  }
+
+  function getMatrixGridBounds(grid) {
+    const { width, height } = getMatrixGridSize(grid);
+    if (!width || !height) {
+      return null;
+    }
+    const left = grid.x;
+    const top = grid.y;
+    return {
+      left,
+      top,
+      right: left + width,
+      bottom: top + height,
+      width,
+      height,
+      centerX: left + width / 2,
+      centerY: top + height / 2,
+    };
+  }
+
+  function getMatrixGridAtPosition(x, y) {
+    const grids = state.matrixGrids || [];
+    for (let index = grids.length - 1; index >= 0; index -= 1) {
+      const grid = grids[index];
+      const bounds = getMatrixGridBounds(grid);
+      if (!bounds) continue;
+      if (x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom) {
+        return grid;
+      }
+    }
+    return null;
   }
 
   function getNodeAtPosition(x, y) {
@@ -967,10 +1179,12 @@ export function createCanvasRenderer(canvas, state) {
     getEdgeHandleAtPosition,
     getAnchorAtPosition,
     getTextBlockAtPosition,
+    getMatrixGridAtPosition,
     getFrameHandleAtPosition,
     getNodeBounds,
     getTextBlockBounds,
     getFrameBounds,
+    getMatrixGridBounds,
     getEdgeLabelAtPosition,
     getViewport: () => ({ width: rendererState.width, height: rendererState.height }),
     getEdgeGeometry: edge => {
@@ -981,5 +1195,6 @@ export function createCanvasRenderer(canvas, state) {
     },
     getAnchorPoint: (node, anchor) => getAnchorPoint(node, anchor),
     getVisibleWorldBounds,
+    worldToScreen,
   };
 }

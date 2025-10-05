@@ -3,6 +3,10 @@ export const mapPort = {
   south: 'south',
   east: 'east',
   west: 'west',
+  northeast: 'north east',
+  southeast: 'south east',
+  southwest: 'south west',
+  northwest: 'north west',
 };
 
 export const mapBend = {
