@@ -34,4 +34,3 @@ export function resolveBendShape(shape) {
 export function resolveOrthogonalTikz(shape) {
   return mapOrtho[shape] || null;
 }
-
