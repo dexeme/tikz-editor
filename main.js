@@ -25,6 +25,7 @@ let nodeSequence = 1;
 let edgeSequence = 1;
 let textSequence = 1;
 let matrixSequence = 1;
+let lineSequence = 1;
 
 const DEFAULT_EDGE_THICKNESS = 2.5;
 
@@ -49,6 +50,46 @@ function makeEdge(from, to) {
     label: null,
     color: '#94a3b8',
     thickness: null,
+  };
+}
+
+function makeLine(start, end) {
+  return {
+    id: `line-${lineSequence++}`,
+    start: { x: start.x, y: start.y },
+    end: { x: end.x, y: end.y },
+    color: '#94a3b8',
+    style: 'solid',
+    thickness: DEFAULT_EDGE_THICKNESS,
+  };
+}
+
+function normalizeLine(line = {}) {
+  const startX = Number(line.start?.x);
+  const startY = Number(line.start?.y);
+  const endX = Number(line.end?.x);
+  const endY = Number(line.end?.y);
+  const color = typeof line.color === 'string' && line.color ? line.color : '#94a3b8';
+  const styleOptions = new Set(['solid', 'dashed', 'dotted']);
+  const rawStyle = typeof line.style === 'string' ? line.style.toLowerCase() : 'solid';
+  const style = styleOptions.has(rawStyle) ? rawStyle : 'solid';
+  const thicknessValue = Number(line.thickness);
+  const thickness = Number.isFinite(thicknessValue) && thicknessValue > 0
+    ? thicknessValue
+    : null;
+  return {
+    id: typeof line.id === 'string' ? line.id : `line-${lineSequence++}`,
+    start: {
+      x: Number.isFinite(startX) ? startX : 0,
+      y: Number.isFinite(startY) ? startY : 0,
+    },
+    end: {
+      x: Number.isFinite(endX) ? endX : 0,
+      y: Number.isFinite(endY) ? endY : 0,
+    },
+    color,
+    style,
+    thickness,
   };
 }
 
@@ -113,7 +154,13 @@ function makeTextBlock(x, y, width, height) {
   };
 }
 
-function refreshSequencesFromState(nodes = [], edges = [], textBlocks = [], matrixGrids = []) {
+function refreshSequencesFromState(
+  nodes = [],
+  edges = [],
+  lines = [],
+  textBlocks = [],
+  matrixGrids = []
+) {
   const extractMax = (items, pattern) => {
     return items.reduce((max, item) => {
       if (typeof item.id !== 'string') return max;
@@ -125,10 +172,12 @@ function refreshSequencesFromState(nodes = [], edges = [], textBlocks = [], matr
   };
   const maxNode = extractMax(nodes, /^node-(\d+)$/);
   const maxEdge = extractMax(edges, /^edge-(\d+)$/);
+  const maxLine = extractMax(lines, /^line-(\d+)$/);
   const maxText = extractMax(textBlocks, /^text-(\d+)$/);
   const maxMatrix = extractMax(matrixGrids, /^matrix-(\d+)$/);
   nodeSequence = Math.max(nodeSequence, maxNode + 1);
   edgeSequence = Math.max(edgeSequence, maxEdge + 1);
+  lineSequence = Math.max(lineSequence, maxLine + 1);
   textSequence = Math.max(textSequence, maxText + 1);
   matrixSequence = Math.max(matrixSequence, maxMatrix + 1);
 }
@@ -138,9 +187,10 @@ createApp({
     const state = reactive({
       nodes: [],
       edges: [],
+      lines: [],
       textBlocks: [],
       matrixGrids: [],
-      mode: 'select',
+      mode: 'move',
       selected: null,
       theme: 'dark',
       edgeStart: null,
@@ -148,6 +198,7 @@ createApp({
       dragMoved: false,
       pointer: null,
       frame: null,
+      drawing: null,
       camera: {
         scale: 1,
         offsetX: 0,
@@ -159,6 +210,7 @@ createApp({
       edgeLabelAlignment: 'right',
       selectionRect: null,
       selectionDraft: [],
+      borderPreviewSuppressed: false,
     });
 
     const panModifierActive = ref(false);
@@ -175,7 +227,7 @@ createApp({
       { id: 'rectangle', label: 'Retângulo', shortcut: 'R' },
       { id: 'circle', label: 'Círculo', shortcut: 'C' },
       { id: 'decision', label: 'Nó de decisão', shortcut: 'D' },
-      { id: 'diamond', label: 'Losango', shortcut: 'L' },
+      { id: 'diamond', label: 'Losango', shortcut: 'G' },
       { id: 'triangle', label: 'Triângulo', shortcut: 'T' },
     ];
     const activeShapeId = ref(availableShapes[0]?.id || null);
@@ -220,9 +272,12 @@ createApp({
     const selectedEdge = computed(() =>
       state.selected?.type === 'edge' ? state.selected.item : null
     );
+    const selectedLine = computed(() =>
+      state.selected?.type === 'line' ? state.selected.item : null
+    );
     const inspectorVisible = computed(() => {
       const type = state.selected?.type;
-      return type === 'node' || type === 'edge';
+      return type === 'node' || type === 'edge' || type === 'line';
     });
     const nodeToolbarState = reactive({
       activePopover: null,
@@ -462,9 +517,14 @@ createApp({
       if (payload.type === 'edge') {
         return !!selectedEdge.value;
       }
+      if (payload.type === 'line') {
+        return !!selectedLine.value;
+      }
       return false;
     });
-    const canCopyFormatting = computed(() => !!selectedNode.value || !!selectedEdge.value);
+    const canCopyFormatting = computed(
+      () => !!selectedNode.value || !!selectedEdge.value || !!selectedLine.value
+    );
 
     const templates = [
       {
@@ -1181,6 +1241,11 @@ createApp({
       if (!nodes.length || !normalized) {
         return;
       }
+      if (options.commit === false && !options.forceCommit) {
+        state.borderPreviewSuppressed = true;
+      } else {
+        state.borderPreviewSuppressed = false;
+      }
       nodeToolbarState.strokeCustomColor = normalized;
       if (options.addToPalette) {
         ensureCustomSwatch('stroke', normalized);
@@ -1196,6 +1261,7 @@ createApp({
       if ((options.commit !== false && changed) || options.forceCommit) {
         pushHistory();
       }
+      renderer.value?.draw();
     }
 
     function addCustomColor(type) {
@@ -1300,6 +1366,7 @@ createApp({
     function copySelectedFormatting() {
       const node = selectedNode.value;
       const edge = selectedEdge.value;
+      const line = selectedLine.value;
       if (node) {
         formatClipboard.value = {
           type: 'node',
@@ -1323,6 +1390,18 @@ createApp({
             Number.isFinite(rawThickness) && rawThickness > 0 ? rawThickness : null,
         };
         flash('Formatação da aresta copiada.');
+        return;
+      }
+      if (line) {
+        const rawThickness = Number(line.thickness);
+        formatClipboard.value = {
+          type: 'line',
+          color: normalizeHex(line.color) || '#94a3b8',
+          style: line.style || 'solid',
+          thickness:
+            Number.isFinite(rawThickness) && rawThickness > 0 ? rawThickness : null,
+        };
+        flash('Formatação da linha copiada.');
       }
     }
 
@@ -1445,6 +1524,48 @@ createApp({
         } else {
           flash('A formatação já está aplicada nesta aresta.');
         }
+        return;
+      }
+
+      if (payload.type === 'line') {
+        const line = selectedLine.value;
+        if (!line) {
+          return;
+        }
+        let changed = false;
+        const lineColor = normalizeHex(payload.color);
+        if (lineColor && line.color !== lineColor) {
+          line.color = lineColor;
+          registerRecentColor(lineColor);
+          changed = true;
+        }
+        const style = payload.style;
+        if (style && line.style !== style) {
+          line.style = style;
+          changed = true;
+        }
+        if (payload.thickness === null) {
+          if (line.thickness !== null) {
+            line.thickness = null;
+            changed = true;
+          }
+        } else {
+          const thicknessValue = Number(payload.thickness);
+          if (
+            Number.isFinite(thicknessValue) &&
+            thicknessValue > 0 &&
+            line.thickness !== thicknessValue
+          ) {
+            line.thickness = thicknessValue;
+            changed = true;
+          }
+        }
+        if (changed) {
+          pushHistory();
+          flash('Formatação aplicada à linha selecionada.');
+        } else {
+          flash('A formatação já está aplicada nesta linha.');
+        }
       }
     }
 
@@ -1553,6 +1674,55 @@ createApp({
       }
       edge.thickness = null;
       pushHistory();
+    }
+
+    function updateSelectedLineThickness(value, options = {}) {
+      const line = selectedLine.value;
+      if (!line) {
+        return;
+      }
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) {
+        return;
+      }
+      const clamped = Math.min(Math.max(numeric, 1), 8);
+      const previous = Number(line.thickness) || null;
+      line.thickness = clamped;
+      const hasChanged = previous !== clamped;
+      if ((options.commit !== false && hasChanged) || options.forceCommit) {
+        pushHistory();
+      }
+    }
+
+    function clearLineThickness() {
+      const line = selectedLine.value;
+      if (!line || line.thickness == null) {
+        return;
+      }
+      line.thickness = null;
+      pushHistory();
+    }
+
+    function updateSelectedLineColor(color, options = {}) {
+      const line = selectedLine.value;
+      const normalized = normalizeHex(color);
+      if (!line || !normalized) {
+        return;
+      }
+      if (options.commit === false && !options.forceCommit) {
+        state.borderPreviewSuppressed = true;
+      } else {
+        state.borderPreviewSuppressed = false;
+      }
+      const previous = line.color;
+      line.color = normalized;
+      registerRecentColor(normalized);
+      const hasChanged = previous !== normalized;
+      if ((options.commit !== false && hasChanged) || options.forceCommit) {
+        pushHistory();
+      }
+      invalidateTikz();
+      renderer.value?.draw();
     }
 
     function setEdgeLabelAlignment(alignment) {
@@ -1741,7 +1911,7 @@ createApp({
       clampMatrixGridToFrame(grid);
       state.matrixGrids = [...state.matrixGrids, grid];
       setSelected({ type: 'matrix', item: grid });
-      refreshSequencesFromState(state.nodes, state.edges, state.textBlocks, state.matrixGrids);
+      refreshSequencesFromState(state.nodes, state.edges, state.lines, state.textBlocks, state.matrixGrids);
       pushHistory();
       invalidateTikz();
       renderer.value?.draw();
@@ -1760,6 +1930,9 @@ createApp({
       const edges = Array.isArray(payload.edges)
         ? payload.edges.map(edge => normalizeEdge({ ...edge }))
         : [];
+      const lines = Array.isArray(payload.lines)
+        ? payload.lines.map(line => normalizeLine({ ...line }))
+        : [];
       const textBlocks = Array.isArray(payload.textBlocks)
         ? payload.textBlocks.map(block => ({ ...block }))
         : [];
@@ -1773,6 +1946,7 @@ createApp({
 
       state.nodes = nodes;
       state.edges = edges;
+      state.lines = lines;
       state.textBlocks = textBlocks;
       state.matrixGrids = matrixGrids;
       state.frame = frame;
@@ -1793,7 +1967,7 @@ createApp({
         state.edgeLabelAlignment = 'right';
       }
       state.selected = null;
-      state.mode = 'select';
+      state.mode = 'move';
       state.edgeDraft = null;
       state.hoverNodeId = null;
       state.hoverAnchor = null;
@@ -1809,7 +1983,7 @@ createApp({
         state.camera.offsetY = 0;
       }
       clearGuides();
-      refreshSequencesFromState(state.nodes, state.edges, state.textBlocks, state.matrixGrids);
+      refreshSequencesFromState(state.nodes, state.edges, state.lines, state.textBlocks, state.matrixGrids);
       invalidateTikz();
       pushHistory();
     }
@@ -2163,8 +2337,14 @@ createApp({
     });
 
     const currentHint = computed(() => {
-      if (state.mode === 'addText') {
-        return 'inserir uma caixa de texto livre';
+      if (state.drawing?.type === 'forms' || state.mode === 'forms') {
+        return 'arrastar para criar uma nova forma';
+      }
+      if (state.drawing?.type === 'frame' || state.mode === 'frame') {
+        return 'arrastar para definir o frame';
+      }
+      if (state.drawing?.type === 'line' || state.mode === 'line') {
+        return 'clique e arraste para criar uma linha livre';
       }
       return state.edgeDraft
         ? 'ligar a aresta ao nó de destino'
@@ -2175,6 +2355,7 @@ createApp({
       () =>
         state.nodes.length > 0 ||
         state.edges.length > 0 ||
+        state.lines.length > 0 ||
         state.textBlocks.length > 0 ||
         state.matrixGrids.length > 0
     );
@@ -2189,6 +2370,7 @@ createApp({
       tikzCode.value = generateTikzDocument(
         state.nodes,
         state.edges,
+        state.lines,
         state.matrixGrids,
         state.frame,
         {
@@ -2200,7 +2382,7 @@ createApp({
     }
 
     watch(
-      () => [state.nodes, state.edges, state.textBlocks, state.matrixGrids],
+      () => [state.nodes, state.edges, state.lines, state.textBlocks, state.matrixGrids],
       () => {
         invalidateTikz();
       },
@@ -2274,12 +2456,14 @@ createApp({
           nodeToolbarState.hoveredOption = null;
           nodeToolbarState.fillCustomColor = '#f8fafc';
           nodeToolbarState.strokeCustomColor = '#94a3b8';
+          state.borderPreviewSuppressed = false;
           return;
         }
         nodeToolbarState.activePopover = null;
         nodeToolbarState.hoveredOption = null;
         nodeToolbarState.fillCustomColor = normalizeHex(node.color) || '#f8fafc';
         nodeToolbarState.strokeCustomColor = normalizeHex(node.borderColor) || '#94a3b8';
+        state.borderPreviewSuppressed = false;
       }
     );
 
@@ -2338,12 +2522,29 @@ createApp({
     );
 
     function changeMode(newMode) {
-      state.mode = newMode;
+      const allowed = ['move', 'forms', 'frame', 'line'];
+      const target = allowed.includes(newMode) ? newMode : 'move';
+      if (target === state.mode) {
+        if (target !== 'move') {
+          cancelDrawing({ revertMode: false });
+          state.mode = 'move';
+        }
+      } else {
+        if (target === 'move') {
+          cancelDrawing({ revertMode: false, restoreSelection: false });
+        } else {
+          cancelDrawing({ revertMode: false });
+        }
+        state.mode = target;
+      }
       state.edgeDraft = null;
       state.hoverNodeId = null;
       state.hoverAnchor = null;
       renderer.value?.draw();
       showDiagramMenu.value = false;
+      if (state.mode !== 'forms') {
+        showFormsMenu.value = false;
+      }
     }
 
     function toggleDiagramMenu() {
@@ -2639,11 +2840,6 @@ createApp({
       return spawnNode(reference, shape, options);
     }
 
-    function createNodeAtPointer(shape) {
-      const pointer = state.pointer || getViewportCenterWorld();
-      return createNodeAtCenter(shape, { position: pointer });
-    }
-
     function createActiveShape(options = {}) {
       const shapeId = activeShapeId.value || availableShapes[0]?.id;
       if (!shapeId) {
@@ -2674,6 +2870,7 @@ createApp({
     function resetGraph() {
       state.nodes = [];
       state.edges = [];
+      state.lines = [];
       state.textBlocks = [];
       state.matrixGrids = [];
       state.selected = null;
@@ -2681,7 +2878,7 @@ createApp({
       state.hoverNodeId = null;
       state.hoverAnchor = null;
       state.pointer = null;
-      state.mode = 'select';
+      state.mode = 'move';
       clearGuides();
       clearSelectionBox();
       pushHistory();
@@ -2708,19 +2905,22 @@ createApp({
 
       state.nodes = template.nodes.map(node => normalizeNode({ ...node }));
       state.edges = template.edges.map(edge => normalizeEdge({ ...edge }));
+      state.lines = Array.isArray(template.lines)
+        ? template.lines.map(line => normalizeLine({ ...line }))
+        : [];
       state.textBlocks = (template.textBlocks || []).map(block => ({ ...block }));
       state.matrixGrids = (template.matrixGrids || []).map(grid =>
         normalizeMatrixGrid({ ...grid })
       );
       state.selected = null;
-      state.mode = 'select';
+      state.mode = 'move';
       state.edgeDraft = null;
       state.hoverNodeId = null;
       state.hoverAnchor = null;
       state.pointer = null;
       clearGuides();
       clearSelectionBox();
-      refreshSequencesFromState(state.nodes, state.edges, state.textBlocks, state.matrixGrids);
+      refreshSequencesFromState(state.nodes, state.edges, state.lines, state.textBlocks, state.matrixGrids);
 
       pushHistory();
       invalidateTikz();
@@ -2757,9 +2957,13 @@ createApp({
       setSelected({ type: 'node', item: node });
     }
 
-    function setSelected(payload) {
+    function setSelected(payload, options = {}) {
       if (!payload) {
         state.selected = null;
+        if (!options.preserveMode) {
+          state.mode = 'move';
+        }
+        state.borderPreviewSuppressed = false;
         return;
       }
       if (payload.type === 'node') {
@@ -2789,7 +2993,21 @@ createApp({
         };
         return;
       }
+      if (payload.type === 'line') {
+        if (!payload.item) {
+          state.selected = null;
+          if (!options.preserveMode) {
+            state.mode = 'move';
+          }
+          state.borderPreviewSuppressed = false;
+          return;
+        }
+        state.selected = { type: 'line', item: payload.item };
+        state.borderPreviewSuppressed = false;
+        return;
+      }
       state.selected = payload;
+      state.borderPreviewSuppressed = false;
     }
 
     function removeSelected(options = {}) {
@@ -2809,6 +3027,8 @@ createApp({
           edge => !nodeIds.has(edge.from) && !nodeIds.has(edge.to)
         );
         state.nodes = state.nodes.filter(node => !nodeIds.has(node.id));
+      } else if (current.type === 'line') {
+        state.lines = state.lines.filter(line => line.id !== current.item.id);
       } else if (current.type === 'edge') {
         state.edges = state.edges.filter(edge => edge.id !== current.item.id);
       } else if (current.type === 'text') {
@@ -3189,6 +3409,137 @@ createApp({
       state.selectionDraft = [];
     }
 
+    function normalizeSelectionSnapshot(selection) {
+      if (!selection) return null;
+      if (selection.type === 'node') {
+        const items = Array.isArray(selection.items)
+          ? selection.items.filter(Boolean)
+          : selection.item
+          ? [selection.item]
+          : [];
+        const item = selection.item || items[items.length - 1] || null;
+        if (!item) return null;
+        return { type: 'node', item, items };
+      }
+      if (selection.type === 'line') {
+        return { type: 'line', item: selection.item };
+      }
+      if (selection.type === 'edge' || selection.type === 'text' || selection.type === 'matrix') {
+        return { type: selection.type, item: selection.item };
+      }
+      return null;
+    }
+
+    function beginDrawing(mode, pointer) {
+      if (!pointer) return;
+      if (!['forms', 'frame', 'line'].includes(mode)) {
+        return;
+      }
+      const selectionSnapshot = normalizeSelectionSnapshot(state.selected);
+      state.drawing = {
+        type: mode,
+        start: { x: pointer.x, y: pointer.y },
+        current: { x: pointer.x, y: pointer.y },
+        shape: mode === 'forms' ? (activeShapeId.value || availableShapes[0]?.id || null) : null,
+        selection: selectionSnapshot,
+      };
+      renderer.value?.draw();
+    }
+
+    function updateDrawing(pointer) {
+      if (!state.drawing || !pointer) {
+        return;
+      }
+      state.drawing.current = { x: pointer.x, y: pointer.y };
+      renderer.value?.draw();
+    }
+
+    function cancelDrawing(options = {}) {
+      const draft = state.drawing;
+      if (!draft) return;
+      state.drawing = null;
+      if (options.restoreSelection !== false && draft.selection) {
+        setSelected(draft.selection, { preserveMode: true });
+      }
+      if (options.revertMode !== false) {
+        state.mode = 'move';
+      }
+      renderer.value?.draw();
+    }
+
+    function completeDrawing(pointer) {
+      const draft = state.drawing;
+      if (!draft) {
+        return false;
+      }
+      const endPoint = pointer
+        ? { x: pointer.x, y: pointer.y }
+        : draft.current || draft.start;
+      const startPoint = draft.start;
+      let created = false;
+
+      if (draft.type === 'forms') {
+        const shapeId = draft.shape || activeShapeId.value || availableShapes[0]?.id;
+        if (!shapeId) {
+          cancelDrawing({ revertMode: true });
+          return false;
+        }
+        const distance = Math.hypot(endPoint.x - startPoint.x, endPoint.y - startPoint.y);
+        const center = distance < 6
+          ? { x: startPoint.x, y: startPoint.y }
+          : {
+              x: startPoint.x + (endPoint.x - startPoint.x) / 2,
+              y: startPoint.y + (endPoint.y - startPoint.y) / 2,
+            };
+        const node = spawnNode(center, shapeId, { silent: true });
+        if (node) {
+          invalidateTikz();
+          flash('Forma criada.');
+          created = true;
+        }
+      } else if (draft.type === 'frame') {
+        const rawWidth = Math.abs(endPoint.x - startPoint.x);
+        const rawHeight = Math.abs(endPoint.y - startPoint.y);
+        if (rawWidth >= 4 && rawHeight >= 4) {
+          const minSize = 64;
+          const width = Math.max(minSize, rawWidth);
+          const height = Math.max(minSize, rawHeight);
+          const left = Math.min(startPoint.x, endPoint.x);
+          const top = Math.min(startPoint.y, endPoint.y);
+          state.frame = {
+            x: left,
+            y: top,
+            width,
+            height,
+          };
+          pushHistory();
+          invalidateTikz();
+          flash('Frame criado.');
+          created = true;
+        }
+      } else if (draft.type === 'line') {
+        const distance = Math.hypot(endPoint.x - startPoint.x, endPoint.y - startPoint.y);
+        if (distance >= 6) {
+          const line = makeLine(startPoint, endPoint);
+          line.thickness = state.edgeThickness;
+          state.lines = [...state.lines, line];
+          setSelected({ type: 'line', item: line });
+          pushHistory();
+          invalidateTikz();
+          flash('Linha criada.');
+          created = true;
+        }
+      }
+
+      state.drawing = null;
+      state.mode = 'move';
+      renderer.value?.draw();
+      if (!created && draft.selection) {
+        setSelected(draft.selection);
+      }
+      return created;
+    }
+
     function finalizeSelectionBox() {
       const rect = state.selectionRect;
       if (!rect) {
@@ -3374,12 +3725,7 @@ createApp({
         event.preventDefault();
         return;
       }
-      if (
-        frameHandle?.type === 'resize' &&
-        state.frame &&
-        state.mode !== 'addText' &&
-        state.mode !== 'delete'
-      ) {
+      if (frameHandle?.type === 'resize' && state.frame && state.mode === 'move') {
         closeDiagramMenu();
         startDrag({
           mode: 'resize-frame',
@@ -3395,6 +3741,13 @@ createApp({
         event.preventDefault();
         return;
       }
+      if (['forms', 'frame', 'line'].includes(state.mode)) {
+        if (event.button === 0) {
+          beginDrawing(state.mode, pointer);
+        }
+        event.preventDefault();
+        return;
+      }
       const anchorHit = renderer.value?.getAnchorAtPosition(pointer.x, pointer.y) || null;
       const textHit = renderer.value?.getTextBlockAtPosition(pointer.x, pointer.y) || null;
       const matrixHit = !textHit
@@ -3407,13 +3760,17 @@ createApp({
       const labelHit = !node && !textHit && !matrixHit
         ? renderer.value?.getEdgeLabelAtPosition(pointer.x, pointer.y) || null
         : null;
+      const lineHit = !node && !edge && !textHit && !matrixHit
+        ? renderer.value?.getLineAtPosition(pointer.x, pointer.y) || null
+        : null;
       if (!node && anchorHit) {
         node = anchorHit.node;
       }
       closeDiagramMenu();
 
-      const canStartEdgeFromAnchor =
-        !!anchorHit && state.mode !== 'addText' && state.mode !== 'delete';
+      const allowDrag = state.mode === 'move';
+
+      const canStartEdgeFromAnchor = !!anchorHit && state.mode === 'move';
 
       if (canStartEdgeFromAnchor) {
         const anchor = anchorHit.anchor;
@@ -3489,45 +3846,6 @@ createApp({
         return;
       }
 
-      if (state.mode === 'addText') {
-        const width = 240;
-        const height = 120;
-        const block = makeTextBlock(pointer.x - width / 2, pointer.y - height / 2, width, height);
-        clampRectToFrame(block);
-        state.textBlocks = [...state.textBlocks, block];
-        setSelected({ type: 'text', item: block });
-        state.mode = 'select';
-        pushHistory();
-        flash('Caixa de texto criada. Use duplo clique para editar o conteúdo.');
-        renderer.value?.draw();
-        return;
-      }
-
-      if (state.mode === 'delete') {
-        if (textHit) {
-          state.textBlocks = state.textBlocks.filter(block => block.id !== textHit.block.id);
-          flash('Caixa de texto removida.');
-        } else if (node) {
-          state.edges = state.edges.filter(edge => edge.from !== node.id && edge.to !== node.id);
-          state.nodes = state.nodes.filter(item => item.id !== node.id);
-          flash('Nó removido. As arestas conectadas também foram apagadas.');
-        } else if (matrixHit) {
-          state.matrixGrids = state.matrixGrids.filter(grid => grid.id !== matrixHit.id);
-          flash('Grade de matriz removida.');
-        } else if (edge) {
-          state.edges = state.edges.filter(item => item.id !== edge.id);
-          flash('Aresta removida.');
-        }
-        if (textHit || node || matrixHit || edge) {
-          setSelected(null);
-          pushHistory();
-          renderer.value?.draw();
-        }
-        return;
-      }
-
-      const allowDrag = state.mode === 'move' || state.mode === 'select';
-
       if (labelHit) {
         const edgeForLabel = labelHit.edge;
         setSelected({ type: 'edge', item: edgeForLabel });
@@ -3540,6 +3858,25 @@ createApp({
             item: edgeForLabel,
             pointerStart: pointer,
             initialOffset: [...edgeForLabel.label.offset],
+          });
+          event.preventDefault();
+        }
+        renderer.value?.draw();
+        return;
+      }
+
+      if (lineHit) {
+        setSelected({ type: 'line', item: lineHit });
+        if (allowDrag && event.button === 0) {
+          startDrag({
+            type: 'line',
+            mode: 'move-line',
+            item: lineHit,
+            pointerStart: pointer,
+            initial: {
+              start: { ...lineHit.start },
+              end: { ...lineHit.end },
+            },
           });
           event.preventDefault();
         }
@@ -3652,13 +3989,7 @@ createApp({
         return;
       }
 
-      if (
-        frameHandle?.type === 'move' &&
-        state.frame &&
-        allowDrag &&
-        state.mode !== 'delete' &&
-        !edge
-      ) {
+      if (frameHandle?.type === 'move' && state.frame && allowDrag && !edge) {
         startDrag({
           mode: 'move-frame',
           pointerStart: pointer,
@@ -3719,6 +4050,12 @@ createApp({
         state.camera.offsetX = state.cameraDrag.initialOffsetX + (pointer.screenX - state.cameraDrag.startScreenX);
         state.camera.offsetY = state.cameraDrag.initialOffsetY + (pointer.screenY - state.cameraDrag.startScreenY);
         renderer.value?.draw();
+        event.preventDefault();
+        return;
+      }
+
+      if (state.drawing) {
+        updateDrawing(pointer);
         event.preventDefault();
         return;
       }
@@ -3817,6 +4154,13 @@ createApp({
           context.item.x = context.initial.x + dx;
           context.item.y = context.initial.y + dy;
           clampMatrixGridToFrame(context.item);
+        } else if (context.mode === 'move-line') {
+          if (context.item && context.initial?.start && context.initial?.end) {
+            context.item.start.x = context.initial.start.x + dx;
+            context.item.start.y = context.initial.start.y + dy;
+            context.item.end.x = context.initial.end.x + dx;
+            context.item.end.y = context.initial.end.y + dy;
+          }
         } else if (context.mode === 'resize-text') {
           const nextWidth = Math.max(TEXT_BLOCK_CONSTRAINTS.minWidth, context.initial.width + dx);
           const nextHeight = Math.max(TEXT_BLOCK_CONSTRAINTS.minHeight, context.initial.height + dy);
@@ -3852,6 +4196,10 @@ createApp({
       }
       if (event) {
         state.pointer = getPointerPosition(event);
+      }
+      if (state.drawing) {
+        completeDrawing(state.pointer);
+        return;
       }
       if (state.selectionRect) {
         const handled = finalizeSelectionBox();
@@ -3892,7 +4240,7 @@ createApp({
           newEdge.toAnchor = target.anchor;
           state.edges = [...state.edges, newEdge];
           setSelected({ type: 'edge', item: newEdge });
-          state.mode = 'select';
+          state.mode = 'move';
           pushHistory();
           flash('Aresta criada com sucesso.');
         }
@@ -4088,6 +4436,7 @@ createApp({
       return {
         nodes: state.nodes.map(node => ({ ...node })),
         edges: state.edges.map(edge => normalizeEdge({ ...edge })),
+        lines: state.lines.map(line => normalizeLine({ ...line })),
         textBlocks: state.textBlocks.map(block => ({ ...block })),
         matrixGrids: state.matrixGrids.map(grid => ({
           ...grid,
@@ -4104,6 +4453,7 @@ createApp({
     function applySnapshot(snap) {
       state.nodes = snap.nodes.map(node => normalizeNode({ ...node }));
       state.edges = snap.edges.map(edge => normalizeEdge({ ...edge }));
+      state.lines = (snap.lines || []).map(line => normalizeLine({ ...line }));
       state.textBlocks = snap.textBlocks.map(block => ({ ...block }));
       state.matrixGrids = (snap.matrixGrids || []).map(grid =>
         normalizeMatrixGrid({ ...grid })
@@ -4128,7 +4478,7 @@ createApp({
       state.pointer = null;
       state.cameraDrag = null;
       clearGuides();
-      refreshSequencesFromState(state.nodes, state.edges, state.textBlocks, state.matrixGrids);
+      refreshSequencesFromState(state.nodes, state.edges, state.lines, state.textBlocks, state.matrixGrids);
       invalidateTikz();
     }
     function pushHistory() {
@@ -4161,6 +4511,7 @@ createApp({
       const payload = {
         nodes: state.nodes.map(node => ({ ...node })),
         edges: state.edges.map(edge => ({ ...edge })),
+        lines: state.lines.map(line => ({ ...line })),
         textBlocks: state.textBlocks.map(block => ({ ...block })),
         matrixGrids: state.matrixGrids.map(grid => ({
           ...grid,
@@ -4252,6 +4603,14 @@ createApp({
           target.isContentEditable);
 
       if (event.key === 'Escape') {
+        if (state.drawing) {
+          cancelDrawing();
+          return;
+        }
+        if (['forms', 'frame', 'line'].includes(state.mode)) {
+          changeMode('move');
+          return;
+        }
         if (showSettingsDialog.value) {
           closeSettingsDialog();
           return;
@@ -4367,10 +4726,26 @@ createApp({
 
       if (!isTextInput && !event.metaKey && !event.ctrlKey && !event.altKey) {
         const shortcutKey = event.key.toLowerCase();
+        if (shortcutKey === 'v') {
+          event.preventDefault();
+          changeMode('move');
+          return;
+        }
+        if (shortcutKey === 'f') {
+          event.preventDefault();
+          changeMode('frame');
+          return;
+        }
+        if (shortcutKey === 'l') {
+          event.preventDefault();
+          changeMode('line');
+          return;
+        }
         const shapeId = shapeShortcutMap[shortcutKey];
         if (shapeId) {
           event.preventDefault();
-          createNodeAtPointer(shapeId);
+          selectShape(shapeId);
+          changeMode('forms');
         }
       }
     }
@@ -4528,6 +4903,7 @@ createApp({
       copySelectedFormatting,
       pasteSelectedFormatting,
       selectedEdge,
+      selectedLine,
       toggleEdgePopover,
       setEdgeToolbarHover,
       applyEdgeColor,
@@ -4536,6 +4912,9 @@ createApp({
       flipEdgeDirection,
       updateSelectedEdgeThickness,
       clearEdgeThickness,
+      updateSelectedLineThickness,
+      clearLineThickness,
+      updateSelectedLineColor,
       setEdgeLabelAlignment,
       mode,
       selected,

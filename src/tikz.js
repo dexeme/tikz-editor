@@ -17,7 +17,38 @@ const SHAPE_OPTIONS = {
   triangle: 'regular polygon, regular polygon sides=3, minimum size=1.8cm, align=center',
 };
 
-export function generateTikzDocument(nodes, edges, matrixGrids = [], frame = null, options = {}) {
+const isPointInsideFrame = (point, frame) => {
+  if (!frame) return true;
+  const frameX = Number(frame?.x);
+  const frameY = Number(frame?.y);
+  const frameWidth = Number(frame?.width);
+  const frameHeight = Number(frame?.height);
+  if (
+    !Number.isFinite(frameX) ||
+    !Number.isFinite(frameY) ||
+    !Number.isFinite(frameWidth) ||
+    !Number.isFinite(frameHeight)
+  ) {
+    return false;
+  }
+  const x = Number(point?.x);
+  const y = Number(point?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    return false;
+  }
+  const frameRight = frameX + frameWidth;
+  const frameBottom = frameY + frameHeight;
+  return x >= frameX && x <= frameRight && y >= frameY && y <= frameBottom;
+};
+
+export function generateTikzDocument(
+  nodes,
+  edges,
+  lines = [],
+  matrixGrids = [],
+  frame = null,
+  options = {}
+) {
   const definedColors = new Map();
   const colorDeclarations = [];
   let colorSequence = 1;
@@ -72,6 +103,27 @@ export function generateTikzDocument(nodes, edges, matrixGrids = [], frame = nul
   const filteredNodes = nodes.filter(node => isNodeInsideFrame(node, frame));
   const nodeMap = new Map(filteredNodes.map(node => [node.id, node]));
   const filteredEdges = edges.filter(edge => nodeMap.has(edge.from) && nodeMap.has(edge.to));
+  const filteredLines = Array.isArray(lines)
+    ? lines
+        .map(line => ({
+          id: line.id,
+          start: {
+            x: Number(line.start?.x) || 0,
+            y: Number(line.start?.y) || 0,
+          },
+          end: {
+            x: Number(line.end?.x) || 0,
+            y: Number(line.end?.y) || 0,
+          },
+          color: line.color,
+          style:
+            line.style === 'dashed' || line.style === 'dotted'
+              ? line.style
+              : 'solid',
+          thickness: line.thickness,
+        }))
+        .filter(line => isPointInsideFrame(line.start, frame) && isPointInsideFrame(line.end, frame))
+    : [];
   const matrixBlocks = Array.isArray(matrixGrids)
     ? matrixGrids
         .map(grid => {
@@ -142,7 +194,7 @@ export function generateTikzDocument(nodes, edges, matrixGrids = [], frame = nul
     body += `    \\node[${options}] (${node.id}) at (${x},${y}) {${formatNodeLabel(node.label)}};\n`;
   });
 
-  if (filteredEdges.length) {
+  if (filteredEdges.length || filteredLines.length) {
     body += '\n';
   }
 
@@ -234,6 +286,29 @@ export function generateTikzDocument(nodes, edges, matrixGrids = [], frame = nul
       : fromNodeId;
     const toRef = toAnchor ? `${toNodeId}.${mapPort[toAnchor] || toAnchor}` : toNodeId;
     body += `    \\draw[${styleParts.join(', ')}] (${fromRef}) ${path}${labelSegment} (${toRef});\n`;
+  });
+
+  filteredLines.forEach(line => {
+    const colorName = registerColor(line.color);
+    const thicknessValue = Number(line.thickness);
+    const parts = [];
+    if (line.style === 'dashed' || line.style === 'dotted') {
+      parts.push(line.style);
+    }
+    if (colorName) {
+      parts.push(`draw=${colorName}`);
+    }
+    if (Number.isFinite(thicknessValue) && thicknessValue > 0) {
+      parts.push(`line width=${(thicknessValue * 0.75).toFixed(2)}pt`);
+    } else if (lineWidthOption) {
+      parts.push(lineWidthOption);
+    }
+    const optionsClause = parts.length ? `[${parts.join(', ')}]` : '';
+    const startX = (line.start.x * SCALE).toFixed(2);
+    const startY = (-line.start.y * SCALE).toFixed(2);
+    const endX = (line.end.x * SCALE).toFixed(2);
+    const endY = (-line.end.y * SCALE).toFixed(2);
+    body += `    \\draw${optionsClause} (${startX},${startY}) -- (${endX},${endY});\n`;
   });
 
   if (matrixBlocks.length) {

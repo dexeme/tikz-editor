@@ -132,6 +132,10 @@ export function createCanvasRenderer(canvas, state) {
     return item?.id === nodeId;
   }
 
+  function isLineSelected(lineId) {
+    return state.selected?.type === 'line' && state.selected?.item?.id === lineId;
+  }
+
   function getCameraScale() {
     return state.camera?.scale || 1;
   }
@@ -320,7 +324,7 @@ export function createCanvasRenderer(canvas, state) {
     const isTarget = targetInfo?.nodeId === node.id;
     const baseStroke = node.borderColor || '#94a3b8';
     const strokeColor = (() => {
-      if (isSelected) return '#38bdf8';
+      if (isSelected && !state.borderPreviewSuppressed) return '#38bdf8';
       if (isTarget) return targetInfo.valid ? '#22c55e' : '#ef4444';
       if (isOrigin) return '#38bdf8';
       if (isHovered && state.edgeDraft) return 'rgba(96, 165, 250, 0.9)';
@@ -331,7 +335,7 @@ export function createCanvasRenderer(canvas, state) {
     const baseWidth = Number(node.borderWidth) || 3;
     const width = (() => {
       if (isTarget) return baseWidth + 1.2;
-      if (isSelected || isOrigin) return baseWidth + 0.6;
+      if ((isSelected && !state.borderPreviewSuppressed) || isOrigin) return baseWidth + 0.6;
       if (isHovered) return baseWidth + 0.3;
       return baseWidth;
     })();
@@ -449,6 +453,51 @@ export function createCanvasRenderer(canvas, state) {
       ctx.fill();
       ctx.stroke();
     });
+    ctx.restore();
+  }
+
+  function drawFreeLine(line) {
+    if (!line?.start || !line?.end) return;
+    const scale = getCameraScale();
+    const isSelected = isLineSelected(line.id);
+    const width = Number(line.thickness) || state.edgeThickness || 2.5;
+    const strokeWidth = Math.max(width, 0.75) / scale;
+    const baseColor = line.color || '#94a3b8';
+    const style = typeof line.style === 'string' ? line.style : 'solid';
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    if (style === 'dashed') {
+      ctx.setLineDash([12 / scale, 10 / scale]);
+    } else if (style === 'dotted') {
+      ctx.setLineDash([3 / scale, 7 / scale]);
+    } else {
+      ctx.setLineDash([]);
+    }
+    ctx.lineWidth = strokeWidth;
+    ctx.strokeStyle = baseColor;
+    ctx.beginPath();
+    ctx.moveTo(line.start.x, line.start.y);
+    ctx.lineTo(line.end.x, line.end.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    if (isSelected && !state.borderPreviewSuppressed) {
+      ctx.lineWidth = (strokeWidth * scale + 4) / scale;
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
+      ctx.stroke();
+    }
+
+    if (isSelected) {
+      const handleRadius = 6 / scale;
+      ctx.fillStyle = state.borderPreviewSuppressed ? baseColor : '#38bdf8';
+      ctx.beginPath();
+      ctx.arc(line.start.x, line.start.y, handleRadius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(line.end.x, line.end.y, handleRadius, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   }
 
@@ -752,6 +801,33 @@ export function createCanvasRenderer(canvas, state) {
     ctx.restore();
   }
 
+  function drawDrawingDraft() {
+    const draft = state.drawing;
+    if (!draft || !draft.start || !draft.current) {
+      return;
+    }
+    const scale = getCameraScale();
+    ctx.save();
+    ctx.lineWidth = 1.5 / scale;
+    ctx.setLineDash([6 / scale, 6 / scale]);
+    ctx.strokeStyle = '#38bdf8';
+    const start = draft.start;
+    const current = draft.current;
+    if (draft.type === 'forms' || draft.type === 'frame') {
+      const left = Math.min(start.x, current.x);
+      const top = Math.min(start.y, current.y);
+      const width = Math.abs(current.x - start.x) || 1;
+      const height = Math.abs(current.y - start.y) || 1;
+      ctx.strokeRect(left, top, width, height);
+    } else if (draft.type === 'line') {
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(current.x, current.y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function draw() {
     resetTransform();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -826,11 +902,13 @@ export function createCanvasRenderer(canvas, state) {
 
   function drawScene() {
     (state.matrixGrids || []).forEach(drawMatrixGrid);
+    (state.lines || []).forEach(drawFreeLine);
     state.edges.forEach(drawEdge);
     state.nodes.forEach(drawNodeBase);
     state.textBlocks?.forEach(drawTextBlock);
     state.nodes.forEach(drawNodeHandles);
     drawEdgePreview();
+    drawDrawingDraft();
     drawGuides();
   }
 
@@ -992,6 +1070,21 @@ export function createCanvasRenderer(canvas, state) {
       }
       return distanceToSegment({ x, y }, startPoint, endPoint) <= threshold;
     }) || null;
+  }
+
+  function getLineAtPosition(x, y) {
+    const threshold = 10 / getCameraScale();
+    const lines = state.lines || [];
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+      const line = lines[index];
+      const start = line.start || { x: 0, y: 0 };
+      const end = line.end || { x: 0, y: 0 };
+      const distance = distanceToSegment({ x, y }, start, end);
+      if (distance <= threshold) {
+        return line;
+      }
+    }
+    return null;
   }
 
   function getEdgeHandleAtPosition(x, y) {
@@ -1216,6 +1309,7 @@ export function createCanvasRenderer(canvas, state) {
     draw,
     getNodeAtPosition,
     getEdgeAtPosition,
+    getLineAtPosition,
     getEdgeHandleAtPosition,
     getAnchorAtPosition,
     getTextBlockAtPosition,

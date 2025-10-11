@@ -84,6 +84,7 @@ const centerAlignedStraightDoc = generateTikzDocument(
   nodes,
   [makeBaseEdge()],
   [],
+  [],
   null,
   { edgeLabelAlignment: 'center' }
 );
@@ -95,6 +96,7 @@ assert.ok(
 const rightAlignedStraightDoc = generateTikzDocument(
   nodes,
   [makeBaseEdge()],
+  [],
   [],
   null,
   { edgeLabelAlignment: 'right' }
@@ -108,6 +110,7 @@ const leftAlignedStraightDoc = generateTikzDocument(
   nodes,
   [makeBaseEdge()],
   [],
+  [],
   null,
   { edgeLabelAlignment: 'left' }
 );
@@ -119,6 +122,7 @@ assert.ok(
 const centerAlignedCurveDoc = generateTikzDocument(
   nodes,
   [makeBaseEdge({ shape: 'curva-direita' })],
+  [],
   [],
   null,
   { edgeLabelAlignment: 'center' }
@@ -136,6 +140,7 @@ const autoOffsetDoc = generateTikzDocument(
     }),
   ],
   [],
+  [],
   null,
   { edgeLabelAlignment: 'auto' }
 );
@@ -146,12 +151,71 @@ assert.ok(
   'Modo automático deve respeitar deslocamentos configurados nos labels'
 );
 
-const nodeBorderDoc = generateTikzDocument(nodes, [makeBaseEdge()], [], null, {
+const nodeBorderDoc = generateTikzDocument(nodes, [makeBaseEdge()], [], [], null, {
   edgeLabelAlignment: 'center',
 });
 assert.ok(
   /\\node\[draw=customColor\d+, [^\]]*fill=customColor\d+/.test(nodeBorderDoc),
   'Nós devem exportar a cor da borda personalizada no TikZ'
+);
+
+const looseLineDoc = generateTikzDocument(
+  [],
+  [],
+  [
+    {
+      id: 'line-test',
+      start: { x: 0, y: 0 },
+      end: { x: 160, y: 0 },
+      color: '#ef4444',
+      thickness: 3,
+    },
+  ]
+);
+assert.ok(
+  /\\draw\[draw=customColor\d+, line width=2\.25pt\] \(0\.00,0\.00\) -- \(8\.00,0\.00\);/.test(
+    looseLineDoc
+  ),
+  'Linhas livres devem exportar com cor personalizada e espessura convertida'
+);
+
+const dashedLineDoc = generateTikzDocument(
+  [],
+  [],
+  [
+    {
+      id: 'line-dashed',
+      start: { x: 0, y: 0 },
+      end: { x: 0, y: 160 },
+      color: '#22d3ee',
+      thickness: 2,
+      style: 'dashed',
+    },
+  ]
+);
+assert.ok(
+  /\\draw\[dashed, draw=customColor\d+, line width=1\.50pt\]/.test(dashedLineDoc),
+  'Linhas tracejadas devem exportar o estilo dashed'
+);
+
+const framedLineDoc = generateTikzDocument(
+  [],
+  [],
+  [
+    {
+      id: 'line-outside',
+      start: { x: -200, y: -200 },
+      end: { x: -100, y: -200 },
+      color: '#22c55e',
+      thickness: 2,
+    },
+  ],
+  [],
+  { x: 0, y: 0, width: 120, height: 120 }
+);
+assert.ok(
+  !framedLineDoc.includes('\\draw['),
+  'Linhas fora do frame devem ser ignoradas na exportação'
 );
 
 const multilineNodeDoc = generateTikzDocument(
@@ -169,6 +233,7 @@ assert.ok(
 );
 
 const matrixDoc = generateTikzDocument(
+  [],
   [],
   [],
   [

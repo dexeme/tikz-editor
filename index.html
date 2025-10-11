@@ -104,7 +104,12 @@
 
                 <div class="relative z-10 flex h-full flex-col">
                   <div class="flex-1 p-6">
-                    <div class="canvas-wrapper" ref="canvasWrapperRef" :class="{ 'is-panning': isPanningActive }" @contextmenu.prevent="openContextMenu">
+                    <div
+                      class="canvas-wrapper"
+                      ref="canvasWrapperRef"
+                      :class="{ 'is-panning': isPanningActive, 'is-drawing': ['forms', 'frame', 'line'].includes(mode) }"
+                      @contextmenu.prevent="openContextMenu"
+                    >
                       <div
                         v-if="selectedNode"
                         ref="nodeToolbarRef"
@@ -716,8 +721,8 @@
                       <button
                         type="button"
                         class="command-button"
-                        :class="{ active: mode === 'select' }"
-                        @click="changeMode('select')"
+                        :class="{ active: mode === 'move' }"
+                        @click="changeMode('move')"
                         aria-label="Mover elementos"
                         aria-keyshortcuts="V"
                       >
@@ -732,8 +737,9 @@
                       <button
                         type="button"
                         class="command-button"
-                        :class="{ active: !!frame }"
-                        @click="frame ? focusFrame() : createFrame()"
+                        :class="{ active: mode === 'frame' }"
+                        @click="changeMode('frame')"
+                        @dblclick.prevent="frame && focusFrame()"
                         aria-label="Frame"
                         aria-keyshortcuts="F"
                       >
@@ -744,18 +750,20 @@
                           </svg>
                         </span>
                         <span class="command-label">Frame</span>
+                        <span v-if="frame" class="command-indicator" aria-hidden="true"></span>
                         <span class="command-shortcut">F</span>
                       </button>
                       <div
                         class="command-button command-button--forms"
-                        :class="{ open: showFormsMenu }"
+                        :class="{ open: showFormsMenu, active: mode === 'forms' }"
                         ref="formsMenuAnchorRef"
                       >
                         <button
                           type="button"
                           class="command-button-main"
-                          @click="createActiveShape()"
-                          aria-label="Inserir forma ativa"
+                          :aria-pressed="mode === 'forms' ? 'true' : 'false'"
+                          @click="changeMode('forms')"
+                          aria-label="Modo Forms"
                         >
                           <span class="command-icon" aria-hidden="true">
                             <svg v-if="activeShape?.id === 'rectangle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
@@ -822,6 +830,22 @@
                           </button>
                         </div>
                       </div>
+                      <button
+                        type="button"
+                        class="command-button"
+                        :class="{ active: mode === 'line' }"
+                        @click="changeMode('line')"
+                        aria-label="Linha livre"
+                        aria-keyshortcuts="L"
+                      >
+                        <span class="command-icon" aria-hidden="true">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 18 20 6" />
+                          </svg>
+                        </span>
+                        <span class="command-label">Line</span>
+                        <span class="command-shortcut">L</span>
+                      </button>
                       <div
                         class="command-button command-button--menu"
                         :class="{ open: showLabelAlignmentMenu }"
@@ -1208,10 +1232,78 @@
                   </div>
                 </div>
               </section>
+              <section
+                class="sidebar-panel"
+                v-else-if="selected && selected.type === 'line'"
+              >
+                <header><h2>Editar linha</h2></header>
+                <div class="panel-content inspector-content">
+                  <div class="inspector-grid">
+                    <label class="inspector-field">
+                      <span>Estilo da linha</span>
+                      <select class="form-field" v-model="selected.item.style" @change="onOptionChange">
+                        <option value="solid">Sólida</option>
+                        <option value="dashed">Tracejada</option>
+                        <option value="dotted">Pontilhada</option>
+                      </select>
+                    </label>
+                    <label class="inspector-field">
+                      <span>Cor da linha</span>
+                      <input
+                        type="color"
+                        :value="selected.item.color"
+                        @input="updateSelectedLineColor($event.target.value, { commit: false })"
+                        @change="updateSelectedLineColor($event.target.value, { forceCommit: true })"
+                      >
+                    </label>
+                  </div>
+                  <label class="inspector-field">
+                    <span>Espessura da linha</span>
+                    <div class="inspector-slider">
+                      <input
+                        type="range"
+                        min="1"
+                        max="8"
+                        step="0.5"
+                        :value="selected.item.thickness ?? edgeThickness"
+                        @input="updateSelectedLineThickness($event.target.value, { commit: false })"
+                        @change="updateSelectedLineThickness($event.target.value, { forceCommit: true })"
+                      >
+                      <span>
+                        {{
+                          selected.item.thickness
+                            ? Number(selected.item.thickness).toFixed(1) + ' px'
+                            : 'Padrão: ' + edgeThicknessDisplay
+                        }}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn btn-ghost mt-2"
+                      @click="clearLineThickness"
+                      :disabled="selected.item.thickness == null"
+                    >
+                      Usar espessura padrão
+                    </button>
+                  </label>
+                  <div class="inspector-actions">
+                    <button type="button" class="btn btn-ghost" @click="copySelectedFormatting">Copiar formatação</button>
+                    <button
+                      type="button"
+                      class="btn btn-ghost"
+                      :disabled="!canPasteFormatting"
+                      @click="pasteSelectedFormatting"
+                    >
+                      Colar formatação
+                    </button>
+                    <button type="button" class="btn btn-ghost danger" @click="removeSelected">Remover linha</button>
+                  </div>
+                </div>
+              </section>
 
               <section class="sidebar-panel" v-else>
                 <header><h2>Nenhum elemento selecionado</h2></header>
-                <div class="empty-state">Selecione um nó ou uma aresta para ver suas propriedades.</div>
+                <div class="empty-state">Selecione um nó, uma linha ou uma aresta para ver suas propriedades.</div>
               </section>
             </div>
 
