@@ -753,6 +753,24 @@
                         <span v-if="frame" class="command-indicator" aria-hidden="true"></span>
                         <span class="command-shortcut">F</span>
                       </button>
+                      <button
+                        v-if="frame"
+                        type="button"
+                        class="command-button command-button--danger"
+                        @click="removeFrame"
+                        aria-label="Remover frame"
+                      >
+                        <span class="command-icon" aria-hidden="true">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M6 7h12" />
+                            <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                            <rect x="7" y="7" width="10" height="12" rx="1" />
+                            <path d="M10 11v6" />
+                            <path d="M14 11v6" />
+                          </svg>
+                        </span>
+                        <span class="command-label">Remover frame</span>
+                      </button>
                       <div
                         class="command-button command-button--forms"
                         :class="{ open: showFormsMenu, active: mode === 'forms' }"

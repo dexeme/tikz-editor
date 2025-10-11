@@ -349,6 +349,16 @@ textarea {
   border-color: var(--border);
 }
 
+.command-button--danger {
+  color: var(--danger);
+}
+
+.command-button--danger:not(:disabled):hover,
+.command-button--danger:not(:disabled):focus-visible {
+  background: rgba(248, 113, 113, 0.15);
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
 .command-button.active,
 .command-button.command-button--menu.open,
 .command-button--forms.open {
@@ -537,7 +547,6 @@ textarea {
 }
 
 .viewport-button {
-  margin-left: 0.75rem;
   width: 2.4rem;
   height: 2.4rem;
   border-radius: 0.75rem;
@@ -1283,6 +1292,9 @@ textarea {
   position: absolute;
   bottom: 1.2rem;
   right: 1.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   background: var(--surface-solid);
   border: 1px solid var(--border);
   border-radius: 0.9rem;

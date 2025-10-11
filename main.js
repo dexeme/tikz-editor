@@ -4974,6 +4974,7 @@ createApp({
       showSettingsDialog,
       changeMode,
       toggleDiagramMenu,
+      closeDiagramMenu,
       toggleFormsMenu,
       toggleEdgeThicknessMenu,
       toggleLabelAlignmentMenu,
