@@ -24,363 +24,75 @@
     </transition>
 
     <div class="flex flex-1 overflow-hidden">
-      <aside
-        class="relative z-30 flex w-64 flex-col gap-4 border-r border-slate-800 bg-slate-900/80 px-4 py-5 text-slate-300 backdrop-blur"
-        role="navigation"
-        aria-label="Ações principais"
-      >
-        <div class="flex flex-col items-start gap-3 text-left">
-          <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg">
-            <span class="text-xl font-semibold">∿</span>
-          </div>
-          <div class="space-y-1">
-            <p class="text-[0.65rem] font-semibold uppercase tracking-[0.4em] text-indigo-400">Editor</p>
-            <h1 class="text-base font-semibold text-white">TikZ</h1>
-          </div>
-        </div>
-
-        <nav class="flex w-full flex-col gap-3">
-          <div class="relative w-full">
-            <button
-              type="button"
-              class="sidebar-btn sidebar-btn--labelled"
-              title="Ações do diagrama"
-              ref="diagramMenuButtonRef"
-              :class="{ 'sidebar-btn--active': showDiagramMenu }"
-              @click="toggleDiagramMenu"
-              :aria-expanded="showDiagramMenu ? 'true' : 'false'"
-              aria-controls="diagram-menu"
-            >
-              <span class="sidebar-btn-icon" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M8 8.5a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0Zm7.5 7.5h2.75A2.75 2.75 0 0 1 21 18.75V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-1.25A2.75 2.75 0 0 1 5.75 16H8.5" />
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 6h2" />
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M17 6h2" />
-                </svg>
-              </span>
-              <span class="sidebar-btn-label">Diagrama</span>
-              <span class="sidebar-btn-chevron" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="m7 10 5 5 5-5" />
-                </svg>
-              </span>
-            </button>
-            <div
-              v-if="showDiagramMenu"
-              id="diagram-menu"
-              ref="diagramMenuRef"
-              class="sidebar-popover"
-              role="menu"
-            >
-              <p class="sidebar-popover-title">Diagrama</p>
-              <div class="sidebar-popover-body sidebar-popover-list">
-                <button type="button" @click="closeDiagramMenu(); triggerLoadDiagram()">
-                  <span class="shape-icon" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 12v6m0-6 3 3m-3-3-3 3" />
-                    </svg>
-                  </span>
-                  <span>Carregar diagrama</span>
+      <div class="flex flex-1 flex-col overflow-hidden">
+        <header class="app-header">
+          <div class="app-header-left">
+            <div class="app-brand">
+              <div class="app-brand-icon">∿</div>
+              <div class="app-brand-text">
+                <p>Editor</p>
+                <h1>TikZ</h1>
+              </div>
+            </div>
+            <div class="file-menu-trigger" ref="diagramMenuButtonRef">
+              <button
+                type="button"
+                class="file-button"
+                @click="toggleDiagramMenu"
+                :aria-expanded="showDiagramMenu ? 'true' : 'false'"
+                aria-controls="diagram-menu"
+              >
+                File
+              </button>
+              <div
+                v-if="showDiagramMenu"
+                id="diagram-menu"
+                ref="diagramMenuRef"
+                class="file-menu"
+                role="menu"
+              >
+                <button type="button" role="menuitem" @click="closeDiagramMenu(); triggerLoadDiagram()">
+                  <span>Carregar diagrama…</span>
                 </button>
-                <button type="button" :disabled="!canReset" @click="closeDiagramMenu(); saveDiagram()">
-                  <span class="shape-icon" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M17 16v5H7v-5" />
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0-4-4m4 4 4-4" />
-                    </svg>
-                  </span>
-                  <span>Salvar diagrama</span>
+                <button type="button" role="menuitem" :disabled="!canReset" @click="closeDiagramMenu(); saveDiagram()">
+                  <span>Salvar diagrama…</span>
                 </button>
-                <button type="button" :disabled="!tikzCode" @click="closeDiagramMenu(); copyToClipboard()">
-                  <span class="shape-icon" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                      <rect x="9" y="9" width="11" height="11" rx="2" />
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" />
-                    </svg>
-                  </span>
+                <button type="button" role="menuitem" :disabled="!tikzCode" @click="closeDiagramMenu(); copyToClipboard()">
                   <span>Copiar código TikZ</span>
                 </button>
-                <button type="button" @click="closeDiagramMenu(); triggerMatrixImport()">
-                  <span class="shape-icon" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                      <rect x="3" y="3" width="18" height="18" rx="2" />
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 3v18M3 9h18" />
-                    </svg>
-                  </span>
-                  <span>Importar matriz</span>
+                <button type="button" role="menuitem" @click="closeDiagramMenu(); triggerMatrixImport()">
+                  <span>Importar matriz…</span>
                 </button>
               </div>
             </div>
           </div>
-
-          <div class="mt-2 w-full">
-            <p class="sidebar-section-title">Formas</p>
-            <div class="mt-2 flex flex-col gap-2">
-              <button
-                v-for="shape in availableShapes"
-                :key="shape.id"
-                type="button"
-                class="sidebar-btn sidebar-btn--labelled"
-                :title="`Adicionar ${shape.label}`"
-                @click="createNodeAtCenter(shape.id)"
-                :aria-keyshortcuts="shape.shortcut || undefined"
-              >
-                <span class="shape-icon" aria-hidden="true">
-                  <svg v-if="shape.id === 'rectangle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-                    <rect x="5" y="6" width="14" height="12" rx="2" />
-                  </svg>
-                  <svg v-else-if="shape.id === 'circle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-                    <circle cx="12" cy="12" r="6.5" />
-                  </svg>
-                  <svg v-else-if="shape.id === 'decision'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4l7 8-7 8-7-8 7-8z" />
-                  </svg>
-                  <svg v-else-if="shape.id === 'diamond'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 9-7 9-7-9 7-9z" />
-                  </svg>
-                  <svg v-else-if="shape.id === 'triangle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 18h15L12 6z" />
-                  </svg>
-                </span>
-                <span class="sidebar-btn-label">
-                  {{ shape.label }}<span v-if="shape.shortcut"> ({{ shape.shortcut }})</span>
-                </span>
-              </button>
-            </div>
-          </div>
-          <div class="relative">
+          <div class="app-header-right">
             <button
               type="button"
-              class="sidebar-btn"
-              title="Ajustar espessura das arestas"
-              ref="edgeThicknessMenuButtonRef"
-              :class="{ 'sidebar-btn--active': showEdgeThicknessMenu }"
-              @click="toggleEdgeThicknessMenu"
-              :aria-expanded="showEdgeThicknessMenu ? 'true' : 'false'"
-              aria-controls="edge-thickness-menu"
+              class="icon-button"
+              :class="{ active: showTemplateBrowser }"
+              @click="toggleTemplateBrowser"
+              aria-label="Abrir galeria de templates"
             >
-              <span class="sidebar-btn-icon" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 8.5h14M5 12h10M5 15.5h6" />
-                </svg>
-              </span>
-              <span class="sr-only">Ajustar espessura das arestas</span>
-            </button>
-            <div
-              v-if="showEdgeThicknessMenu"
-              id="edge-thickness-menu"
-              ref="edgeThicknessMenuRef"
-              class="sidebar-popover"
-              role="menu"
-            >
-              <p class="sidebar-popover-title">Espessura das arestas</p>
-              <div class="sidebar-popover-body space-y-4">
-                <div class="flex items-center justify-between text-xs font-medium text-slate-300">
-                  <span>Espessura global</span>
-                  <span class="text-indigo-300 font-semibold">{{ edgeThicknessDisplay }} px</span>
-                </div>
-                <input
-                  type="range"
-                  min="1"
-                  max="8"
-                  step="0.5"
-                  :value="edgeThickness"
-                  @input="updateEdgeThickness($event.target.value)"
-                  @change="commitHistory"
-                  class="slider"
-                >
-              </div>
-            </div>
-          </div>
-          <div class="relative">
-            <button
-              type="button"
-              class="sidebar-btn"
-              title="Definir alinhamento padrão do rótulo"
-              ref="labelAlignmentMenuButtonRef"
-              :class="{ 'sidebar-btn--active': showLabelAlignmentMenu }"
-              @click="toggleLabelAlignmentMenu"
-              :aria-expanded="showLabelAlignmentMenu ? 'true' : 'false'"
-              aria-controls="label-alignment-menu"
-            >
-              <span class="sidebar-btn-icon" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 7h12M6 12h8M6 17h10" />
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 12l2-2m0 0 2 2m-2-2v4" />
-                </svg>
-              </span>
-              <span class="sr-only">Definir alinhamento padrão do rótulo</span>
-            </button>
-            <div
-              v-if="showLabelAlignmentMenu"
-              id="label-alignment-menu"
-              ref="labelAlignmentMenuRef"
-              class="sidebar-popover"
-              role="menu"
-            >
-              <p class="sidebar-popover-title">Alinhamento padrão</p>
-              <div class="sidebar-popover-body space-y-3">
-                <label class="sidebar-field">
-                  <span>Posição dos rótulos das arestas</span>
-                  <select
-                    :value="edgeLabelAlignment"
-                    @change="onEdgeLabelAlignmentChange($event.target.value)"
-                    class="form-field"
-                  >
-                    <option value="auto">Automático</option>
-                    <option value="left">Esquerda</option>
-                    <option value="center">Centralizado</option>
-                    <option value="right">Direita</option>
-                  </select>
-                </label>
-              </div>
-            </div>
-          </div>
-          <div class="relative">
-            <button
-              type="button"
-              class="sidebar-btn"
-              title="Histórico"
-              ref="historyMenuButtonRef"
-              :class="{ 'sidebar-btn--active': showHistoryMenu }"
-              @click="toggleHistoryMenu"
-              :aria-expanded="showHistoryMenu ? 'true' : 'false'"
-              aria-controls="history-menu"
-            >
-              <span class="sidebar-btn-icon" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v4m0 10a7 7 0 1 1 6.32-4" />
-                  <path stroke-linecap="round" stroke-linejoin="round" d="m16 5-4-2-4 2" />
-                </svg>
-              </span>
-              <span class="sr-only">Histórico</span>
-            </button>
-            <div
-              v-if="showHistoryMenu"
-              id="history-menu"
-              ref="historyMenuRef"
-              class="sidebar-popover"
-              role="menu"
-            >
-              <p class="sidebar-popover-title">Histórico</p>
-              <div class="sidebar-popover-body space-y-4">
-                <p class="text-xs leading-relaxed text-slate-400">
-                  Gerencie ações recentes no canvas.
-                </p>
-                <div class="grid gap-2">
-                  <button type="button" class="pill-btn w-full justify-center" @click="undo" :disabled="!canUndo" aria-label="Desfazer">
-                    <span aria-hidden="true">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M7 9 3 13l4 4" />
-                        <path d="M3 13h11a5 5 0 1 1 0 10h-2" />
-                      </svg>
-                    </span>
-                    <span>Desfazer</span>
-                  </button>
-                  <button type="button" class="pill-btn w-full justify-center" @click="redo" :disabled="!canRedo" aria-label="Refazer">
-                    <span aria-hidden="true">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="m17 9 4 4-4 4" />
-                        <path d="M21 13H10a5 5 0 1 0 0 10h2" />
-                      </svg>
-                    </span>
-                    <span>Refazer</span>
-                  </button>
-                  <button type="button" class="pill-btn pill-btn--danger w-full justify-center" @click="resetGraph" :disabled="!canReset">
-                    <span aria-hidden="true">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M4 4v6h6" />
-                        <path d="M4 10a8 8 0 1 0 2.34-5.66L4 6" />
-                      </svg>
-                    </span>
-                    <span>Limpar canvas</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </nav>
-
-        <div class="mt-auto space-y-2.5">
-          <button type="button" class="sidebar-btn" title="Centralizar visão" @click="resetView">
-            <span class="sidebar-btn-icon" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <circle cx="12" cy="12" r="9" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v8m4-4H8" />
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z" />
               </svg>
-            </span>
-            <span class="sr-only">Centralizar visão</span>
-          </button>
-          <button
-            v-if="frame"
-            type="button"
-            class="sidebar-btn"
-            title="Enquadrar frame"
-            @click="focusFrame"
-          >
-            <span class="sidebar-btn-icon" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <rect x="5" y="5" width="14" height="14" rx="2" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 9h6v6H9z" />
-              </svg>
-            </span>
-            <span class="sr-only">Enquadrar frame</span>
-          </button>
-          <button
-            type="button"
-            class="sidebar-btn"
-            title="Galeria de templates"
-            :class="{ 'sidebar-btn--active': showTemplateBrowser }"
-            @click="toggleTemplateBrowser"
-          >
-            <span class="sidebar-btn-icon" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z" />
-              </svg>
-            </span>
-            <span class="sr-only">Galeria de templates</span>
-          </button>
-          <div class="relative">
+            </button>
             <button
               type="button"
-              class="sidebar-btn"
-              title="Configurações"
-              :class="{ 'sidebar-btn--active': showSettingsDialog }"
+              class="icon-button"
+              :class="{ active: showSettingsDialog }"
               @click="toggleSettingsDialog"
-              :aria-expanded="showSettingsDialog ? 'true' : 'false'"
-              aria-controls="settings-dialog"
+              aria-label="Abrir configurações"
             >
-              <span class="sidebar-btn-icon" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 3.5h1.5l.45 2.4a6.5 6.5 0 0 1 1.74.72l2.2-1.26 1.06 1.06-1.26 2.2c.27.54.5 1.13.66 1.74l2.43.44v1.5l-2.43.45a6.6 6.6 0 0 1-.66 1.74l1.26 2.2-1.06 1.06-2.2-1.26a6.5 6.5 0 0 1-1.74.72l-.45 2.4h-1.5l-.45-2.4a6.5 6.5 0 0 1-1.74-.72l-2.2 1.26-1.06-1.06 1.26-2.2a6.6 6.6 0 0 1-.66-1.74l-2.43-.45v-1.5l2.43-.45c.16-.61.39-1.2.66-1.74l-1.26-2.2 1.06-1.06 2.2 1.26a6.5 6.5 0 0 1 1.74-.72l.45-2.4z" />
-                  <circle cx="12" cy="12" r="2.5" />
-                </svg>
-              </span>
-              <span class="sr-only">Configurações</span>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11.25 3.5h1.5l.45 2.4a6.5 6.5 0 0 1 1.74.72l2.2-1.26 1.06 1.06-1.26 2.2c.27.54.5 1.13.66 1.74l2.43.44v1.5l-2.43.45a6.6 6.6 0 0 1-.66 1.74l1.26 2.2-1.06 1.06-2.2-1.26a6.5 6.5 0 0 1-1.74.72l-.45 2.4h-1.5l-.45-2.4a6.5 6.5 0 0 1-1.74-.72l-2.2 1.26-1.06-1.06 1.26-2.2a6.6 6.6 0 0 1-.66-1.74l-2.43-.45v-1.5l2.43-.45c.16-.61.39-1.2.66-1.74l-1.26-2.2 1.06-1.06 2.2 1.26a6.5 6.5 0 0 1 1.74-.72l.45-2.4z" />
+                <circle cx="12" cy="12" r="2.5" />
+              </svg>
             </button>
-          </div>
-        </div>
-      </aside>
-
-      <div class="flex flex-1 flex-col overflow-hidden">
-        <header class="border-b border-slate-800 bg-slate-900/80 px-6 py-4 backdrop-blur">
-          <div class="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.3em] text-indigo-400">Interface alternativa</p>
-              <h1 class="text-2xl font-semibold text-white">TikZ Editor</h1>
-            </div>
-            <div class="flex flex-wrap items-center gap-3">
-              <button type="button" class="btn btn-ghost" @click="triggerLoadDiagram">
-                Importar
-              </button>
-              <button type="button" class="btn btn-ghost" @click="saveDiagram" :disabled="!canReset">
-                Salvar JSON
-              </button>
-              <button type="button" class="btn btn-primary" @click="copyToClipboard" :disabled="!tikzCode">
-                Copiar TikZ
-              </button>
-            </div>
+            <button type="button" class="primary-button" @click="copyToClipboard" :disabled="!tikzCode">
+              Copiar TikZ
+            </button>
           </div>
         </header>
 
@@ -392,7 +104,7 @@
 
                 <div class="relative z-10 flex h-full flex-col">
                   <div class="flex-1 p-6">
-                    <div class="canvas-wrapper" ref="canvasWrapperRef" :class="{ 'is-panning': isPanningActive }">
+                    <div class="canvas-wrapper" ref="canvasWrapperRef" :class="{ 'is-panning': isPanningActive }" @contextmenu.prevent="openContextMenu">
                       <div
                         v-if="selectedNode"
                         ref="nodeToolbarRef"
@@ -959,6 +671,17 @@
                           <span>{{ zoomLevel }}%</span>
                           <button type="button" @click="zoomIn">+</button>
                         </div>
+                        <button type="button" class="viewport-button" @click="resetView" aria-label="Centralizar visão">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="5" />
+                            <path d="M12 3v3" />
+                            <path d="M12 18v3" />
+                            <path d="M3 12h3" />
+                            <path d="M18 12h3" />
+                            <path d="M12 9v6" />
+                            <path d="M9 12h6" />
+                          </svg>
+                        </button>
                       </div>
                       <div
                         v-if="inlineEditor.visible"
@@ -987,6 +710,234 @@
                       </div>
                       <p class="canvas-hint">Clique no canvas para {{ currentHint }}</p>
                     </div>
+                  </div>
+                  <div class="command-bar-container">
+                    <div class="command-bar" role="toolbar" aria-label="Ferramentas do canvas">
+                      <button
+                        type="button"
+                        class="command-button"
+                        :class="{ active: mode === 'select' }"
+                        @click="changeMode('select')"
+                        aria-label="Mover elementos"
+                        aria-keyshortcuts="V"
+                      >
+                        <span class="command-icon" aria-hidden="true">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M5.2 3.5 18.5 11.4l-5.8 1.6 3.8 6.9-2.3 1.2-3.9-7.1-3.3 3.2z" />
+                          </svg>
+                        </span>
+                        <span class="command-label">Move</span>
+                        <span class="command-shortcut">V</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="command-button"
+                        :class="{ active: !!frame }"
+                        @click="frame ? focusFrame() : createFrame()"
+                        aria-label="Frame"
+                        aria-keyshortcuts="F"
+                      >
+                        <span class="command-icon" aria-hidden="true">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="4" y="4" width="16" height="16" rx="2" />
+                            <rect x="8" y="8" width="8" height="8" rx="1.5" />
+                          </svg>
+                        </span>
+                        <span class="command-label">Frame</span>
+                        <span class="command-shortcut">F</span>
+                      </button>
+                      <div
+                        class="command-button command-button--forms"
+                        :class="{ open: showFormsMenu }"
+                        ref="formsMenuAnchorRef"
+                      >
+                        <button
+                          type="button"
+                          class="command-button-main"
+                          @click="createActiveShape()"
+                          aria-label="Inserir forma ativa"
+                        >
+                          <span class="command-icon" aria-hidden="true">
+                            <svg v-if="activeShape?.id === 'rectangle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                              <rect x="5" y="6" width="14" height="12" rx="2" />
+                            </svg>
+                            <svg v-else-if="activeShape?.id === 'circle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                              <circle cx="12" cy="12" r="6.5" />
+                            </svg>
+                            <svg v-else-if="activeShape?.id === 'decision'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4l7 8-7 8-7-8 7-8z" />
+                            </svg>
+                            <svg v-else-if="activeShape?.id === 'diamond'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 9-7 9-7-9 7-9z" />
+                            </svg>
+                            <svg v-else-if="activeShape?.id === 'triangle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 18h15L12 6z" />
+                            </svg>
+                          </span>
+                          <span class="command-label">Forms</span>
+                        </button>
+                        <button
+                          type="button"
+                          class="command-button-chevron"
+                          @click.stop="toggleFormsMenu"
+                          :aria-expanded="showFormsMenu ? 'true' : 'false'"
+                          aria-label="Escolher forma"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="m8 10 4 4 4-4" />
+                          </svg>
+                        </button>
+                        <div
+                          v-if="showFormsMenu"
+                          ref="formsMenuRef"
+                          class="command-popover"
+                          role="menu"
+                        >
+                          <button
+                            v-for="shape in availableShapes"
+                            :key="`shape-option-${shape.id}`"
+                            type="button"
+                            role="menuitem"
+                            @click="selectShape(shape.id)"
+                          >
+                            <span class="shape-preview" aria-hidden="true">
+                              <svg v-if="shape.id === 'rectangle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                                <rect x="5" y="6" width="14" height="12" rx="2" />
+                              </svg>
+                              <svg v-else-if="shape.id === 'circle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                                <circle cx="12" cy="12" r="6.5" />
+                              </svg>
+                              <svg v-else-if="shape.id === 'decision'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4l7 8-7 8-7-8 7-8z" />
+                              </svg>
+                              <svg v-else-if="shape.id === 'diamond'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 9-7 9-7-9 7-9z" />
+                              </svg>
+                              <svg v-else-if="shape.id === 'triangle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 18h15L12 6z" />
+                              </svg>
+                            </span>
+                            <span class="shape-label">{{ shape.label }}</span>
+                            <span v-if="shape.shortcut" class="shape-shortcut">{{ shape.shortcut }}</span>
+                          </button>
+                        </div>
+                      </div>
+                      <div
+                        class="command-button command-button--menu"
+                        :class="{ open: showLabelAlignmentMenu }"
+                      >
+                        <button
+                          type="button"
+                          class="command-button-main"
+                          ref="labelAlignmentMenuButtonRef"
+                          @click="toggleLabelAlignmentMenu"
+                          :aria-expanded="showLabelAlignmentMenu ? 'true' : 'false'"
+                          aria-label="Alinhamento global"
+                        >
+                          <span class="command-icon" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                              <path d="M6 7h12" />
+                              <path d="M9 12h6" />
+                              <path d="M8 16h8" />
+                            </svg>
+                          </span>
+                          <span class="command-label">Global alignment</span>
+                        </button>
+                        <div
+                          v-if="showLabelAlignmentMenu"
+                          ref="labelAlignmentMenuRef"
+                          class="command-popover"
+                          role="menu"
+                        >
+                          <label class="command-field">
+                            <span>Posição padrão dos rótulos</span>
+                            <select
+                              :value="edgeLabelAlignment"
+                              @change="onEdgeLabelAlignmentChange($event.target.value)"
+                            >
+                              <option value="auto">Automático</option>
+                              <option value="left">Esquerda</option>
+                              <option value="center">Centralizado</option>
+                              <option value="right">Direita</option>
+                            </select>
+                          </label>
+                        </div>
+                      </div>
+                      <div
+                        class="command-button command-button--menu"
+                        :class="{ open: showEdgeThicknessMenu }"
+                      >
+                        <button
+                          type="button"
+                          class="command-button-main"
+                          ref="edgeThicknessMenuButtonRef"
+                          @click="toggleEdgeThicknessMenu"
+                          :aria-expanded="showEdgeThicknessMenu ? 'true' : 'false'"
+                          aria-label="Espessura global"
+                        >
+                          <span class="command-icon" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                              <path d="M5 8.5h14" />
+                              <path d="M5 12h10" />
+                              <path d="M5 15.5h6" />
+                            </svg>
+                          </span>
+                          <span class="command-label">Global stroke</span>
+                        </button>
+                        <div
+                          v-if="showEdgeThicknessMenu"
+                          ref="edgeThicknessMenuRef"
+                          class="command-popover"
+                          role="menu"
+                        >
+                          <div class="command-field">
+                            <span>Espessura global</span>
+                            <span class="command-value">{{ edgeThicknessDisplay }} px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="1"
+                            max="8"
+                            step="0.5"
+                            :value="edgeThickness"
+                            @input="updateEdgeThickness($event.target.value)"
+                            @change="commitHistory"
+                          >
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    v-if="contextMenu.visible"
+                    ref="contextMenuRef"
+                    class="canvas-context-menu"
+                    :style="contextMenuStyle"
+                    role="menu"
+                  >
+                    <button type="button" @click="closeContextMenu(); copySelection()" :disabled="!canCopySelection">
+                      <span>Copiar</span>
+                      <span class="shortcut">Ctrl C</span>
+                    </button>
+                    <button type="button" @click="closeContextMenu(); pasteSelection()" :disabled="!canPasteClipboard">
+                      <span>Colar</span>
+                      <span class="shortcut">Ctrl V</span>
+                    </button>
+                    <button type="button" @click="closeContextMenu(); cutSelection()" :disabled="!canCutSelection">
+                      <span>Cortar</span>
+                      <span class="shortcut">Ctrl X</span>
+                    </button>
+                    <button type="button" @click="closeContextMenu(); duplicateSelection()" :disabled="!canDuplicateSelection">
+                      <span>Duplicar</span>
+                      <span class="shortcut">Ctrl D</span>
+                    </button>
+                    <button type="button" @click="closeContextMenu(); copySelectedFormatting()" :disabled="!canCopyFormatting">
+                      <span>Copiar estilo</span>
+                      <span class="shortcut">Ctrl ⇧ C</span>
+                    </button>
+                    <button type="button" @click="closeContextMenu(); pasteSelectedFormatting()" :disabled="!canPasteFormatting">
+                      <span>Colar estilo</span>
+                      <span class="shortcut">Ctrl ⇧ V</span>
+                    </button>
                   </div>
                 </div>
               </div>

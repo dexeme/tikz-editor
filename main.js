@@ -178,6 +178,10 @@ createApp({
       { id: 'diamond', label: 'Losango', shortcut: 'L' },
       { id: 'triangle', label: 'Triângulo', shortcut: 'T' },
     ];
+    const activeShapeId = ref(availableShapes[0]?.id || null);
+    const activeShape = computed(() =>
+      availableShapes.find(shape => shape.id === activeShapeId.value) || availableShapes[0] || null
+    );
 
     const shapeShortcutMap = availableShapes.reduce((map, shape) => {
       if (shape.shortcut) {
@@ -189,8 +193,15 @@ createApp({
     const showTemplateBrowser = ref(false);
 
     const formatClipboard = ref(null);
+    const clipboard = ref(null);
+    const contextMenu = reactive({
+      visible: false,
+      x: 0,
+      y: 0,
+    });
     const nodeToolbarRef = ref(null);
     const edgeToolbarRef = ref(null);
+    const contextMenuRef = ref(null);
     const matrixFileInputRef = ref(null);
     const selectedNodes = computed(() => {
       if (state.selected?.type !== 'node') {
@@ -344,6 +355,29 @@ createApp({
       }
       return '';
     });
+    const contextMenuStyle = computed(() => ({
+      left: `${contextMenu.x}px`,
+      top: `${contextMenu.y}px`,
+    }));
+    const canCopySelection = computed(() => {
+      const current = state.selected;
+      if (!current) {
+        return false;
+      }
+      if (current.type === 'node') {
+        return selectedNodes.value.length > 0;
+      }
+      if (current.type === 'text') {
+        return !!current.item;
+      }
+      if (current.type === 'matrix') {
+        return !!current.item;
+      }
+      return false;
+    });
+    const canCutSelection = canCopySelection;
+    const canDuplicateSelection = canCopySelection;
+    const canPasteClipboard = computed(() => !!clipboard.value);
     const nodeToolbarStyle = computed(() => {
       const node = selectedNode.value;
       state.camera.offsetX;
@@ -430,6 +464,7 @@ createApp({
       }
       return false;
     });
+    const canCopyFormatting = computed(() => !!selectedNode.value || !!selectedEdge.value);
 
     const templates = [
       {
@@ -769,9 +804,9 @@ createApp({
     const autoUpdateTikz = ref(true);
     const tikzUpdatePending = ref(false);
     const showDiagramMenu = ref(false);
+    const showFormsMenu = ref(false);
     const showEdgeThicknessMenu = ref(false);
     const showLabelAlignmentMenu = ref(false);
-    const showHistoryMenu = ref(false);
     const showSettingsDialog = ref(false);
     const inlineEditor = reactive({
       visible: false,
@@ -803,8 +838,8 @@ createApp({
     const edgeThicknessMenuRef = ref(null);
     const labelAlignmentMenuButtonRef = ref(null);
     const labelAlignmentMenuRef = ref(null);
-    const historyMenuButtonRef = ref(null);
-    const historyMenuRef = ref(null);
+    const formsMenuAnchorRef = ref(null);
+    const formsMenuRef = ref(null);
     const viewport = ref({ width: 0, height: 0 });
     const zoomLevel = computed(() => Math.round(state.camera.scale * 100));
     const edgeThicknessDisplay = computed(() => state.edgeThickness.toFixed(1));
@@ -2205,6 +2240,17 @@ createApp({
     );
 
     watch(
+      () => contextMenu.visible,
+      visible => {
+        if (visible) {
+          nextTick(() => {
+            adjustContextMenuPosition();
+          });
+        }
+      }
+    );
+
+    watch(
       () => matrixPrompt.text,
       () => {
         if (matrixPrompt.error) {
@@ -2306,7 +2352,7 @@ createApp({
       if (next) {
         showEdgeThicknessMenu.value = false;
         showLabelAlignmentMenu.value = false;
-        showHistoryMenu.value = false;
+        showFormsMenu.value = false;
         showSettingsDialog.value = false;
       }
     }
@@ -2315,13 +2361,28 @@ createApp({
       showDiagramMenu.value = false;
     }
 
+    function toggleFormsMenu() {
+      const next = !showFormsMenu.value;
+      showFormsMenu.value = next;
+      if (next) {
+        showDiagramMenu.value = false;
+        showEdgeThicknessMenu.value = false;
+        showLabelAlignmentMenu.value = false;
+        showSettingsDialog.value = false;
+      }
+    }
+
+    function closeFormsMenu() {
+      showFormsMenu.value = false;
+    }
+
     function toggleEdgeThicknessMenu() {
       const next = !showEdgeThicknessMenu.value;
       showEdgeThicknessMenu.value = next;
       if (next) {
         showDiagramMenu.value = false;
         showLabelAlignmentMenu.value = false;
-        showHistoryMenu.value = false;
+        showFormsMenu.value = false;
         showSettingsDialog.value = false;
       }
     }
@@ -2336,7 +2397,7 @@ createApp({
       if (next) {
         showDiagramMenu.value = false;
         showEdgeThicknessMenu.value = false;
-        showHistoryMenu.value = false;
+        showFormsMenu.value = false;
         showSettingsDialog.value = false;
       }
     }
@@ -2345,19 +2406,50 @@ createApp({
       showLabelAlignmentMenu.value = false;
     }
 
-    function toggleHistoryMenu() {
-      const next = !showHistoryMenu.value;
-      showHistoryMenu.value = next;
-      if (next) {
-        showDiagramMenu.value = false;
-        showEdgeThicknessMenu.value = false;
-        showLabelAlignmentMenu.value = false;
-        showSettingsDialog.value = false;
+    function adjustContextMenuPosition() {
+      const menuEl = contextMenuRef.value;
+      if (!menuEl) {
+        return;
       }
+      const rect = menuEl.getBoundingClientRect();
+      const padding = 12;
+      let nextX = contextMenu.x;
+      let nextY = contextMenu.y;
+      if (rect.right > window.innerWidth) {
+        nextX = Math.max(padding, window.innerWidth - rect.width - padding);
+      }
+      if (rect.bottom > window.innerHeight) {
+        nextY = Math.max(padding, window.innerHeight - rect.height - padding);
+      }
+      if (rect.left < 0) {
+        nextX = padding;
+      }
+      if (rect.top < 0) {
+        nextY = padding;
+      }
+      contextMenu.x = nextX;
+      contextMenu.y = nextY;
     }
 
-    function closeHistoryMenu() {
-      showHistoryMenu.value = false;
+    function openContextMenu(event) {
+      event.preventDefault();
+      const pointer = getPointerPosition(event);
+      state.pointer = pointer;
+      showFormsMenu.value = false;
+      showDiagramMenu.value = false;
+      showEdgeThicknessMenu.value = false;
+      showLabelAlignmentMenu.value = false;
+      showSettingsDialog.value = false;
+      contextMenu.x = event.clientX;
+      contextMenu.y = event.clientY;
+      contextMenu.visible = true;
+      nextTick(() => {
+        adjustContextMenuPosition();
+      });
+    }
+
+    function closeContextMenu() {
+      contextMenu.visible = false;
     }
 
     function toggleSettingsDialog() {
@@ -2367,7 +2459,7 @@ createApp({
         showDiagramMenu.value = false;
         showEdgeThicknessMenu.value = false;
         showLabelAlignmentMenu.value = false;
-        showHistoryMenu.value = false;
+        showFormsMenu.value = false;
       }
     }
 
@@ -2526,15 +2618,57 @@ createApp({
       fitFrameInView();
     }
 
-    function createNodeAtCenter(shape) {
-      closeDiagramMenu();
-      const center = getViewportCenterWorld();
-      const node = makeNode(center.x, center.y, shape);
+    function spawnNode(position, shape, options = {}) {
+      const node = makeNode(position.x, position.y, shape);
       state.nodes = [...state.nodes, node];
       setSelected({ type: 'node', item: node });
       pushHistory();
       renderer.value?.draw();
-      flash('Novo nó adicionado. Arraste para reposicionar e conecte pelos pontos azuis.');
+      if (!options.silent) {
+        flash(
+          options.message ||
+            'Novo nó adicionado. Arraste para reposicionar e conecte pelos pontos azuis.'
+        );
+      }
+      return node;
+    }
+
+    function createNodeAtCenter(shape, options = {}) {
+      closeDiagramMenu();
+      const reference = options.position || getViewportCenterWorld();
+      return spawnNode(reference, shape, options);
+    }
+
+    function createNodeAtPointer(shape) {
+      const pointer = state.pointer || getViewportCenterWorld();
+      return createNodeAtCenter(shape, { position: pointer });
+    }
+
+    function createActiveShape(options = {}) {
+      const shapeId = activeShapeId.value || availableShapes[0]?.id;
+      if (!shapeId) {
+        return;
+      }
+      if (!options.keepOpen) {
+        closeFormsMenu();
+      }
+      const position =
+        options.position || state.pointer || getViewportCenterWorld();
+      createNodeAtCenter(shapeId, { ...options, position });
+    }
+
+    function selectShape(shapeId, options = {}) {
+      if (!shapeId) {
+        return;
+      }
+      activeShapeId.value = shapeId;
+      const keepOpen = options.keepOpen === true;
+      if (!keepOpen) {
+        closeFormsMenu();
+      }
+      if (options.create) {
+        createActiveShape({ ...options, keepOpen });
+      }
     }
 
     function resetGraph() {
@@ -2658,7 +2792,7 @@ createApp({
       state.selected = payload;
     }
 
-    function removeSelected() {
+    function removeSelected(options = {}) {
       const current = state.selected;
       if (!current) return;
       if (current.type === 'node') {
@@ -2684,7 +2818,9 @@ createApp({
       }
       state.selected = null;
       pushHistory();
-      flash('Elemento removido do canvas.');
+      if (!options.silent) {
+        flash('Elemento removido do canvas.');
+      }
     }
 
     function createFrame() {
@@ -2712,6 +2848,242 @@ createApp({
       renderer.value?.draw();
       pushHistory();
       flash('Frame removido. O canvas volta a mostrar todo o conteúdo.');
+    }
+
+    function copySelection(options = {}) {
+      const selection = state.selected;
+      if (!selection) {
+        return false;
+      }
+      if (selection.type === 'node') {
+        const nodes = selectedNodes.value;
+        if (!nodes.length) {
+          return false;
+        }
+        const centerX = nodes.reduce((sum, node) => sum + node.x, 0) / nodes.length;
+        const centerY = nodes.reduce((sum, node) => sum + node.y, 0) / nodes.length;
+        const nodePayload = nodes.map(node => ({
+          sourceId: node.id,
+          x: node.x,
+          y: node.y,
+          label: node.label,
+          color: node.color,
+          borderColor: node.borderColor,
+          borderWidth: node.borderWidth,
+          fontSize: node.fontSize,
+          cornerRadius: node.cornerRadius,
+          shape: node.shape,
+        }));
+        const nodeIds = new Set(nodes.map(node => node.id));
+        const edgePayload = state.edges
+          .filter(edge => nodeIds.has(edge.from) && nodeIds.has(edge.to))
+          .map(edge => ({
+            sourceId: edge.id,
+            from: edge.from,
+            to: edge.to,
+            fromAnchor: edge.fromAnchor,
+            toAnchor: edge.toAnchor,
+            style: edge.style,
+            direction: edge.direction,
+            shape: edge.shape,
+            bend: edge.bend,
+            label: edge.label ? { ...edge.label } : null,
+            color: edge.color,
+            thickness: edge.thickness,
+          }));
+        clipboard.value = {
+          type: 'nodes',
+          center: { x: centerX, y: centerY },
+          nodes: nodePayload,
+          edges: edgePayload,
+        };
+        if (!options?.silent) {
+          const message = nodePayload.length > 1
+            ? 'Elementos copiados. Use Ctrl+V para colar.'
+            : 'Elemento copiado. Use Ctrl+V para colar.';
+          flash(message);
+        }
+        return true;
+      }
+      if (selection.type === 'text' && selection.item) {
+        const block = selection.item;
+        clipboard.value = {
+          type: 'text',
+          center: { x: block.x, y: block.y },
+          block: {
+            x: block.x,
+            y: block.y,
+            width: block.width,
+            height: block.height,
+            text: block.text,
+            fontSize: block.fontSize,
+            fontWeight: block.fontWeight,
+          },
+        };
+        if (!options?.silent) {
+          flash('Bloco de texto copiado. Use Ctrl+V para colar.');
+        }
+        return true;
+      }
+      if (selection.type === 'matrix' && selection.item) {
+        const grid = selection.item;
+        clipboard.value = {
+          type: 'matrix',
+          center: { x: grid.x, y: grid.y },
+          grid: {
+            x: grid.x,
+            y: grid.y,
+            cellSize: grid.cellSize,
+            data: Array.isArray(grid.data) ? grid.data.map(row => [...row]) : [],
+            colorMap: { ...(grid.colorMap || {}) },
+          },
+        };
+        if (!options?.silent) {
+          flash('Matriz copiada. Use Ctrl+V para colar.');
+        }
+        return true;
+      }
+      return false;
+    }
+
+    function getPasteAnchor(options = {}) {
+      if (options.anchor) {
+        return options.anchor;
+      }
+      if (state.pointer) {
+        return { x: state.pointer.x, y: state.pointer.y };
+      }
+      return getViewportCenterWorld();
+    }
+
+    function pasteSelection(options = {}) {
+      const payload = options.clipboard || clipboard.value;
+      if (!payload) {
+        flash('Não há conteúdo copiado para colar.');
+        return false;
+      }
+      const anchor = getPasteAnchor(options);
+      const baseCenter = payload.center || anchor;
+      const extraOffsetX = options.offset?.x ?? 0;
+      const extraOffsetY = options.offset?.y ?? 0;
+      const offsetX = anchor.x - baseCenter.x + extraOffsetX;
+      const offsetY = anchor.y - baseCenter.y + extraOffsetY;
+
+      if (payload.type === 'nodes') {
+        const createdNodes = [];
+        const idMap = new Map();
+        payload.nodes.forEach(nodeData => {
+          const node = makeNode(nodeData.x + offsetX, nodeData.y + offsetY, nodeData.shape);
+          node.label = nodeData.label;
+          node.color = nodeData.color;
+          node.borderColor = nodeData.borderColor;
+          node.borderWidth = nodeData.borderWidth;
+          node.fontSize = nodeData.fontSize;
+          node.cornerRadius = nodeData.cornerRadius;
+          createdNodes.push(node);
+          idMap.set(nodeData.sourceId || nodeData.id || node.id, node.id);
+        });
+        if (!createdNodes.length) {
+          return false;
+        }
+        state.nodes = [...state.nodes, ...createdNodes];
+        const createdEdges = [];
+        if (Array.isArray(payload.edges)) {
+          payload.edges.forEach(edgeData => {
+            const fromId = idMap.get(edgeData.from);
+            const toId = idMap.get(edgeData.to);
+            if (!fromId || !toId) {
+              return;
+            }
+            const edge = makeEdge(fromId, toId);
+            edge.fromAnchor = edgeData.fromAnchor;
+            edge.toAnchor = edgeData.toAnchor;
+            edge.style = edgeData.style || 'solid';
+            edge.direction = edgeData.direction || '->';
+            edge.shape = edgeData.shape || 'straight';
+            edge.bend = edgeData.bend ?? 30;
+            edge.label = edgeData.label ? { ...edgeData.label } : null;
+            edge.color = edgeData.color || '#94a3b8';
+            edge.thickness = edgeData.thickness ?? null;
+            createdEdges.push(edge);
+          });
+        }
+        if (createdEdges.length) {
+          state.edges = [...state.edges, ...createdEdges];
+        }
+        setSelected({
+          type: 'node',
+          items: createdNodes,
+          item: createdNodes[createdNodes.length - 1] || null,
+        });
+        pushHistory();
+        renderer.value?.draw();
+        flash(options.message || 'Elementos colados no canvas.');
+        return true;
+      }
+
+      if (payload.type === 'text' && payload.block) {
+        const blockData = payload.block;
+        const newBlock = {
+          id: `text-${textSequence++}`,
+          x: blockData.x + offsetX,
+          y: blockData.y + offsetY,
+          width: blockData.width ?? TEXT_BLOCK_CONSTRAINTS.minWidth,
+          height: blockData.height ?? TEXT_BLOCK_CONSTRAINTS.minHeight,
+          text: blockData.text ?? '',
+          fontSize: blockData.fontSize ?? 16,
+          fontWeight: blockData.fontWeight ?? 500,
+        };
+        state.textBlocks = [...state.textBlocks, newBlock];
+        setSelected({ type: 'text', item: newBlock });
+        pushHistory();
+        renderer.value?.draw();
+        flash(options.message || 'Bloco de texto colado.');
+        return true;
+      }
+
+      if (payload.type === 'matrix' && payload.grid) {
+        const gridData = payload.grid;
+        const newGrid = {
+          id: `matrix-${matrixSequence++}`,
+          x: gridData.x + offsetX,
+          y: gridData.y + offsetY,
+          cellSize: gridData.cellSize,
+          data: Array.isArray(gridData.data) ? gridData.data.map(row => [...row]) : [],
+          colorMap: { ...(gridData.colorMap || {}) },
+        };
+        state.matrixGrids = [...state.matrixGrids, newGrid];
+        setSelected({ type: 'matrix', item: newGrid });
+        pushHistory();
+        renderer.value?.draw();
+        flash(options.message || 'Matriz colada no canvas.');
+        return true;
+      }
+
+      return false;
+    }
+
+    function cutSelection() {
+      const copied = copySelection({ silent: true });
+      if (!copied) {
+        return;
+      }
+      removeSelected({ silent: true });
+      flash('Elementos recortados. Use Ctrl+V para colar.');
+    }
+
+    function duplicateSelection() {
+      const copied = copySelection({ silent: true });
+      if (!copied || !clipboard.value) {
+        return;
+      }
+      const payload = clipboard.value;
+      const baseCenter = payload.center || getViewportCenterWorld();
+      const anchor = {
+        x: baseCenter.x + 40,
+        y: baseCenter.y + 40,
+      };
+      pasteSelection({ clipboard: payload, anchor, message: 'Elementos duplicados.' });
     }
 
     function getPointerPosition(event) {
@@ -3884,8 +4256,12 @@ createApp({
           closeSettingsDialog();
           return;
         }
-        if (showHistoryMenu.value) {
-          closeHistoryMenu();
+        if (contextMenu.visible) {
+          closeContextMenu();
+          return;
+        }
+        if (showFormsMenu.value) {
+          closeFormsMenu();
           return;
         }
         if (showEdgeThicknessMenu.value) {
@@ -3945,6 +4321,43 @@ createApp({
         event.preventDefault();
         redo();
       }
+      const modifier = event.metaKey || event.ctrlKey;
+      if (modifier && event.shiftKey && event.key.toLowerCase() === 'c' && !isTextInput) {
+        event.preventDefault();
+        copySelectedFormatting();
+        closeContextMenu();
+        return;
+      }
+      if (modifier && event.shiftKey && event.key.toLowerCase() === 'v' && !isTextInput) {
+        event.preventDefault();
+        pasteSelectedFormatting();
+        closeContextMenu();
+        return;
+      }
+      if (modifier && !event.shiftKey && event.key.toLowerCase() === 'c' && !isTextInput) {
+        event.preventDefault();
+        copySelection();
+        closeContextMenu();
+        return;
+      }
+      if (modifier && !event.shiftKey && event.key.toLowerCase() === 'x' && !isTextInput) {
+        event.preventDefault();
+        cutSelection();
+        closeContextMenu();
+        return;
+      }
+      if (modifier && !event.shiftKey && event.key.toLowerCase() === 'v' && !isTextInput) {
+        event.preventDefault();
+        pasteSelection();
+        closeContextMenu();
+        return;
+      }
+      if (modifier && !event.shiftKey && event.key.toLowerCase() === 'd' && !isTextInput) {
+        event.preventDefault();
+        duplicateSelection();
+        closeContextMenu();
+        return;
+      }
       if (event.key === 'Delete' && !isTextInput) {
         if (state.selected) {
           event.preventDefault();
@@ -3957,7 +4370,7 @@ createApp({
         const shapeId = shapeShortcutMap[shortcutKey];
         if (shapeId) {
           event.preventDefault();
-          createNodeAtCenter(shapeId);
+          createNodeAtPointer(shapeId);
         }
       }
     }
@@ -3984,14 +4397,6 @@ createApp({
         }
       }
 
-      if (showHistoryMenu.value) {
-        const menuEl = historyMenuRef.value;
-        const buttonEl = historyMenuButtonRef.value;
-        if (!(menuEl?.contains(event.target) || buttonEl?.contains(event.target))) {
-          closeHistoryMenu();
-        }
-      }
-
       if (showLabelAlignmentMenu.value) {
         const menuEl = labelAlignmentMenuRef.value;
         const buttonEl = labelAlignmentMenuButtonRef.value;
@@ -4005,6 +4410,21 @@ createApp({
         const buttonEl = diagramMenuButtonRef.value;
         if (!(menuEl?.contains(event.target) || buttonEl?.contains(event.target))) {
           closeDiagramMenu();
+        }
+      }
+
+      if (contextMenu.visible) {
+        const menuEl = contextMenuRef.value;
+        if (!menuEl?.contains(event.target)) {
+          closeContextMenu();
+        }
+      }
+
+      if (showFormsMenu.value) {
+        const menuEl = formsMenuRef.value;
+        const anchorEl = formsMenuAnchorRef.value;
+        if (!(menuEl?.contains(event.target) || anchorEl?.contains(event.target))) {
+          closeFormsMenu();
         }
       }
 
@@ -4068,6 +4488,8 @@ createApp({
 
     return {
       availableShapes,
+      activeShape,
+      activeShapeId,
       templates,
       selectedNodes,
       selectedNode,
@@ -4078,6 +4500,11 @@ createApp({
       nodeFillPalette,
       nodeStrokePalette,
       recentColorPalette,
+      canCopyFormatting,
+      clipboard,
+      contextMenu,
+      contextMenuRef,
+      contextMenuStyle,
       nodeToolbarHint,
       nodeToolbarStyle,
       edgeToolbarHint,
@@ -4085,6 +4512,10 @@ createApp({
       hasSelectedEdgeLabel,
       fontSizeOptions,
       canPasteFormatting,
+      canCopySelection,
+      canCutSelection,
+      canDuplicateSelection,
+      canPasteClipboard,
       toggleNodePopover,
       setNodeToolbarHover,
       applyNodeFill,
@@ -4145,12 +4576,12 @@ createApp({
       canvasWrapperRef,
       diagramMenuButtonRef,
       diagramMenuRef,
+      formsMenuAnchorRef,
+      formsMenuRef,
       edgeThicknessMenuButtonRef,
       edgeThicknessMenuRef,
       labelAlignmentMenuButtonRef,
       labelAlignmentMenuRef,
-      historyMenuButtonRef,
-      historyMenuRef,
       showTemplateBrowser,
       diagramFileInputRef,
       matrixFileInputRef,
@@ -4158,23 +4589,27 @@ createApp({
       inlineEditorLineMarkers,
       inlineEditorRef,
       showDiagramMenu,
+      showFormsMenu,
       showEdgeThicknessMenu,
       showLabelAlignmentMenu,
-      showHistoryMenu,
       showSettingsDialog,
       changeMode,
       toggleDiagramMenu,
+      toggleFormsMenu,
       toggleEdgeThicknessMenu,
       toggleLabelAlignmentMenu,
-      toggleHistoryMenu,
       toggleSettingsDialog,
       toggleTemplateBrowser,
       closeTemplateBrowser,
+      closeFormsMenu,
       closeEdgeThicknessMenu,
       closeLabelAlignmentMenu,
-      closeHistoryMenu,
       closeSettingsDialog,
+      openContextMenu,
+      closeContextMenu,
       createNodeAtCenter,
+      createActiveShape,
+      selectShape,
       resetGraph,
       applyTemplate,
       saveDiagram,
@@ -4198,6 +4633,10 @@ createApp({
       onCanvasWheel,
       onCanvasDblClick,
       removeSelected,
+      copySelection,
+      cutSelection,
+      pasteSelection,
+      duplicateSelection,
       createFrame,
       removeFrame,
       focusFrame,

@@ -346,28 +346,35 @@ export function createCanvasRenderer(canvas, state) {
     const fontSize = Number(node.fontSize) || 16;
     const lines = (node.label || 'Nó').toString().split(/\n/);
     const lineHeight = fontSize * 1.25;
-    const totalHeight = lineHeight * (lines.length - 1);
 
     ctx.fillStyle = '#0f172a';
     ctx.font = `600 ${fontSize}px Inter, system-ui`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    const { halfWidth } = getNodeDimensions(node);
+    const { halfWidth, halfHeight } = getNodeDimensions(node);
     const maxTextWidth = Math.max(halfWidth * 2 - fontSize, 24);
+    const availableHeight = Math.max(halfHeight * 2 - fontSize * 0.5, lineHeight);
+    const maxLines = Math.max(1, Math.floor(availableHeight / lineHeight));
     const ellipsis = '…';
 
-    const truncatedLines = lines.map(line => {
-      const content = line ?? '';
-      if (ctx.measureText(content).width <= maxTextWidth) {
-        return content;
+    const truncateLine = (content, forceEllipsis = false) => {
+      const raw = typeof content === 'string' ? content : '';
+      if (!forceEllipsis && ctx.measureText(raw).width <= maxTextWidth) {
+        return raw;
+      }
+      const trimmed = raw.trimEnd();
+      let best = forceEllipsis
+        ? (trimmed ? `${trimmed}${ellipsis}` : ellipsis)
+        : ellipsis;
+      if (forceEllipsis && ctx.measureText(best).width <= maxTextWidth) {
+        return best;
       }
       let low = 0;
-      let high = content.length;
-      let best = ellipsis;
+      let high = trimmed.length;
       while (low <= high) {
         const mid = Math.floor((low + high) / 2);
-        const slice = content.slice(0, mid).trimEnd();
+        const slice = trimmed.slice(0, mid).trimEnd();
         const candidate = slice ? `${slice}${ellipsis}` : ellipsis;
         if (ctx.measureText(candidate).width <= maxTextWidth) {
           best = candidate;
@@ -377,9 +384,17 @@ export function createCanvasRenderer(canvas, state) {
         }
       }
       return best;
-    });
+    };
 
-    let offsetY = node.y - totalHeight / 2;
+    const truncatedLines = [];
+    for (let i = 0; i < lines.length && truncatedLines.length < maxLines; i += 1) {
+      const isLastLine = truncatedLines.length === maxLines - 1;
+      const hasMoreContent = isLastLine && i < lines.length - 1;
+      truncatedLines.push(truncateLine(lines[i], hasMoreContent));
+    }
+
+    const effectiveHeight = lineHeight * (Math.max(truncatedLines.length, 1) - 1);
+    let offsetY = node.y - effectiveHeight / 2;
     truncatedLines.forEach(line => {
       ctx.fillText(line, node.x, offsetY);
       offsetY += lineHeight;
