@@ -157,6 +157,8 @@ createApp({
       guides: { vertical: null, horizontal: null },
       edgeThickness: DEFAULT_EDGE_THICKNESS,
       edgeLabelAlignment: 'right',
+      selectionRect: null,
+      selectionDraft: [],
     });
 
     const panModifierActive = ref(false);
@@ -170,12 +172,19 @@ createApp({
     const canRedo = computed(() => history.future.length > 0);
 
     const availableShapes = [
-      { id: 'rectangle', label: 'Retângulo' },
-      { id: 'circle', label: 'Círculo' },
-      { id: 'decision', label: 'Nó de decisão' },
-      { id: 'diamond', label: 'Losango' },
-      { id: 'triangle', label: 'Triângulo' },
+      { id: 'rectangle', label: 'Retângulo', shortcut: 'R' },
+      { id: 'circle', label: 'Círculo', shortcut: 'C' },
+      { id: 'decision', label: 'Nó de decisão', shortcut: 'D' },
+      { id: 'diamond', label: 'Losango', shortcut: 'L' },
+      { id: 'triangle', label: 'Triângulo', shortcut: 'T' },
     ];
+
+    const shapeShortcutMap = availableShapes.reduce((map, shape) => {
+      if (shape.shortcut) {
+        map[shape.shortcut.toLowerCase()] = shape.id;
+      }
+      return map;
+    }, {});
 
     const showTemplateBrowser = ref(false);
 
@@ -737,8 +746,8 @@ createApp({
 
     const canvasRef = ref(null);
     const canvasWrapperRef = ref(null);
-    const nodeMenuButtonRef = ref(null);
-    const nodeMenuRef = ref(null);
+    const diagramMenuButtonRef = ref(null);
+    const diagramMenuRef = ref(null);
     const inlineEditorRef = ref(null);
     const renderer = ref(null);
     const diagramFileInputRef = ref(null);
@@ -759,7 +768,7 @@ createApp({
     const lastRenderedTikz = ref('');
     const autoUpdateTikz = ref(true);
     const tikzUpdatePending = ref(false);
-    const showNodeMenu = ref(false);
+    const showDiagramMenu = ref(false);
     const showEdgeThicknessMenu = ref(false);
     const showLabelAlignmentMenu = ref(false);
     const showHistoryMenu = ref(false);
@@ -2288,12 +2297,12 @@ createApp({
       state.hoverNodeId = null;
       state.hoverAnchor = null;
       renderer.value?.draw();
-      showNodeMenu.value = false;
+      showDiagramMenu.value = false;
     }
 
-    function toggleNodeMenu() {
-      const next = !showNodeMenu.value;
-      showNodeMenu.value = next;
+    function toggleDiagramMenu() {
+      const next = !showDiagramMenu.value;
+      showDiagramMenu.value = next;
       if (next) {
         showEdgeThicknessMenu.value = false;
         showLabelAlignmentMenu.value = false;
@@ -2302,15 +2311,15 @@ createApp({
       }
     }
 
-    function closeNodeMenu() {
-      showNodeMenu.value = false;
+    function closeDiagramMenu() {
+      showDiagramMenu.value = false;
     }
 
     function toggleEdgeThicknessMenu() {
       const next = !showEdgeThicknessMenu.value;
       showEdgeThicknessMenu.value = next;
       if (next) {
-        showNodeMenu.value = false;
+        showDiagramMenu.value = false;
         showLabelAlignmentMenu.value = false;
         showHistoryMenu.value = false;
         showSettingsDialog.value = false;
@@ -2325,7 +2334,7 @@ createApp({
       const next = !showLabelAlignmentMenu.value;
       showLabelAlignmentMenu.value = next;
       if (next) {
-        showNodeMenu.value = false;
+        showDiagramMenu.value = false;
         showEdgeThicknessMenu.value = false;
         showHistoryMenu.value = false;
         showSettingsDialog.value = false;
@@ -2340,7 +2349,7 @@ createApp({
       const next = !showHistoryMenu.value;
       showHistoryMenu.value = next;
       if (next) {
-        showNodeMenu.value = false;
+        showDiagramMenu.value = false;
         showEdgeThicknessMenu.value = false;
         showLabelAlignmentMenu.value = false;
         showSettingsDialog.value = false;
@@ -2355,7 +2364,7 @@ createApp({
       const next = !showSettingsDialog.value;
       showSettingsDialog.value = next;
       if (next) {
-        showNodeMenu.value = false;
+        showDiagramMenu.value = false;
         showEdgeThicknessMenu.value = false;
         showLabelAlignmentMenu.value = false;
         showHistoryMenu.value = false;
@@ -2517,13 +2526,14 @@ createApp({
       fitFrameInView();
     }
 
-    function createNodeFromMenu(shape) {
-      closeNodeMenu();
+    function createNodeAtCenter(shape) {
+      closeDiagramMenu();
       const center = getViewportCenterWorld();
       const node = makeNode(center.x, center.y, shape);
       state.nodes = [...state.nodes, node];
       setSelected({ type: 'node', item: node });
       pushHistory();
+      renderer.value?.draw();
       flash('Novo nó adicionado. Arraste para reposicionar e conecte pelos pontos azuis.');
     }
 
@@ -2539,6 +2549,7 @@ createApp({
       state.pointer = null;
       state.mode = 'select';
       clearGuides();
+      clearSelectionBox();
       pushHistory();
       flash('O diagrama foi limpo. Comece adicionando novos elementos.');
       renderer.value?.draw();
@@ -2559,7 +2570,7 @@ createApp({
       }
 
       closeInlineEditor();
-      closeNodeMenu();
+      closeDiagramMenu();
 
       state.nodes = template.nodes.map(node => normalizeNode({ ...node }));
       state.edges = template.edges.map(edge => normalizeEdge({ ...edge }));
@@ -2574,6 +2585,7 @@ createApp({
       state.hoverAnchor = null;
       state.pointer = null;
       clearGuides();
+      clearSelectionBox();
       refreshSequencesFromState(state.nodes, state.edges, state.textBlocks, state.matrixGrids);
 
       pushHistory();
@@ -2747,6 +2759,96 @@ createApp({
       state.guides.horizontal = horizontal ?? null;
     }
 
+    function getNodesWithinRect(rect) {
+      if (!renderer.value || !rect) {
+        return [];
+      }
+      const nodes = [];
+      state.nodes.forEach(node => {
+        const bounds = renderer.value?.getNodeBounds?.(node);
+        if (!bounds) {
+          return;
+        }
+        if (
+          bounds.left >= rect.left &&
+          bounds.right <= rect.right &&
+          bounds.top >= rect.top &&
+          bounds.bottom <= rect.bottom
+        ) {
+          nodes.push(node);
+        }
+      });
+      return nodes;
+    }
+
+    function startSelectionBox(pointer, options = {}) {
+      state.selectionRect = {
+        originX: pointer.x,
+        originY: pointer.y,
+        left: pointer.x,
+        top: pointer.y,
+        right: pointer.x,
+        bottom: pointer.y,
+        width: 0,
+        height: 0,
+        additive: !!options.additive,
+      };
+      state.selectionDraft = [];
+    }
+
+    function updateSelectionBox(pointer) {
+      const rect = state.selectionRect;
+      if (!rect) return;
+      const left = Math.min(rect.originX, pointer.x);
+      const right = Math.max(rect.originX, pointer.x);
+      const top = Math.min(rect.originY, pointer.y);
+      const bottom = Math.max(rect.originY, pointer.y);
+      rect.left = left;
+      rect.right = right;
+      rect.top = top;
+      rect.bottom = bottom;
+      rect.width = right - left;
+      rect.height = bottom - top;
+      state.selectionDraft = getNodesWithinRect(rect);
+    }
+
+    function clearSelectionBox() {
+      state.selectionRect = null;
+      state.selectionDraft = [];
+    }
+
+    function finalizeSelectionBox() {
+      const rect = state.selectionRect;
+      if (!rect) {
+        return false;
+      }
+      const nodes = getNodesWithinRect(rect);
+      const additive = rect.additive;
+      const isClick = rect.width <= 3 && rect.height <= 3;
+      clearSelectionBox();
+      if (!nodes.length) {
+        if (!additive && isClick) {
+          setSelected(null);
+        }
+        return true;
+      }
+      if (additive && state.selected?.type === 'node') {
+        const existing = selectedNodes.value;
+        const combined = [...existing];
+        nodes.forEach(node => {
+          if (!combined.some(item => item.id === node.id)) {
+            combined.push(node);
+          }
+        });
+        if (combined.length) {
+          setSelected({ type: 'node', items: combined, item: nodes[nodes.length - 1] });
+        }
+      } else {
+        setSelected({ type: 'node', items: nodes, item: nodes[nodes.length - 1] });
+      }
+      return true;
+    }
+
     function collectGuideCandidates(context) {
       const result = { vertical: [], horizontal: [] };
       if (!renderer.value) {
@@ -2895,7 +2997,7 @@ createApp({
       state.pointer = pointer;
       const frameHandle = renderer.value?.getFrameHandleAtPosition(pointer.x, pointer.y) || null;
       if (shouldStartCameraPan(event)) {
-        closeNodeMenu();
+        closeDiagramMenu();
         startCameraDrag(pointer);
         event.preventDefault();
         return;
@@ -2906,7 +3008,7 @@ createApp({
         state.mode !== 'addText' &&
         state.mode !== 'delete'
       ) {
-        closeNodeMenu();
+        closeDiagramMenu();
         startDrag({
           mode: 'resize-frame',
           pointerStart: pointer,
@@ -2936,7 +3038,7 @@ createApp({
       if (!node && anchorHit) {
         node = anchorHit.node;
       }
-      closeNodeMenu();
+      closeDiagramMenu();
 
       const canStartEdgeFromAnchor =
         !!anchorHit && state.mode !== 'addText' && state.mode !== 'delete';
@@ -3200,8 +3302,19 @@ createApp({
         return;
       }
 
-      setSelected(null);
-      renderer.value?.draw();
+      if (allowDrag && event.button === 0) {
+        startSelectionBox(pointer, { additive: event.shiftKey });
+        if (!event.shiftKey) {
+          setSelected(null);
+        }
+        renderer.value?.draw();
+        return;
+      }
+
+      if (!event.shiftKey) {
+        setSelected(null);
+        renderer.value?.draw();
+      }
     }
 
     function updateHoverState(pointer) {
@@ -3291,6 +3404,12 @@ createApp({
         return;
       }
 
+      if (state.selectionRect) {
+        updateSelectionBox(pointer);
+        renderer.value?.draw();
+        return;
+      }
+
       const context = state.dragContext;
       if (context) {
         let dx = pointer.x - context.pointerStart.x;
@@ -3361,6 +3480,13 @@ createApp({
       }
       if (event) {
         state.pointer = getPointerPosition(event);
+      }
+      if (state.selectionRect) {
+        const handled = finalizeSelectionBox();
+        if (handled) {
+          renderer.value?.draw();
+          return;
+        }
       }
       if (state.edgeDraft) {
         const draft = state.edgeDraft;
@@ -3770,8 +3896,8 @@ createApp({
           closeLabelAlignmentMenu();
           return;
         }
-        if (showNodeMenu.value) {
-          closeNodeMenu();
+        if (showDiagramMenu.value) {
+          closeDiagramMenu();
           return;
         }
         if (showTemplateBrowser.value) {
@@ -3780,6 +3906,11 @@ createApp({
         }
         if (inlineEditor.visible) {
           closeInlineEditor();
+          return;
+        }
+        if (state.selectionRect) {
+          clearSelectionBox();
+          renderer.value?.draw();
           return;
         }
         if (state.selected) {
@@ -3818,6 +3949,15 @@ createApp({
         if (state.selected) {
           event.preventDefault();
           removeSelected();
+        }
+      }
+
+      if (!isTextInput && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        const shortcutKey = event.key.toLowerCase();
+        const shapeId = shapeShortcutMap[shortcutKey];
+        if (shapeId) {
+          event.preventDefault();
+          createNodeAtCenter(shapeId);
         }
       }
     }
@@ -3860,11 +4000,11 @@ createApp({
         }
       }
 
-      if (showNodeMenu.value) {
-        const menuEl = nodeMenuRef.value;
-        const buttonEl = nodeMenuButtonRef.value;
+      if (showDiagramMenu.value) {
+        const menuEl = diagramMenuRef.value;
+        const buttonEl = diagramMenuButtonRef.value;
         if (!(menuEl?.contains(event.target) || buttonEl?.contains(event.target))) {
-          closeNodeMenu();
+          closeDiagramMenu();
         }
       }
 
@@ -4003,8 +4143,8 @@ createApp({
       inspectorVisible,
       canvasRef,
       canvasWrapperRef,
-      nodeMenuButtonRef,
-      nodeMenuRef,
+      diagramMenuButtonRef,
+      diagramMenuRef,
       edgeThicknessMenuButtonRef,
       edgeThicknessMenuRef,
       labelAlignmentMenuButtonRef,
@@ -4017,13 +4157,13 @@ createApp({
       inlineEditor,
       inlineEditorLineMarkers,
       inlineEditorRef,
-      showNodeMenu,
+      showDiagramMenu,
       showEdgeThicknessMenu,
       showLabelAlignmentMenu,
       showHistoryMenu,
       showSettingsDialog,
       changeMode,
-      toggleNodeMenu,
+      toggleDiagramMenu,
       toggleEdgeThicknessMenu,
       toggleLabelAlignmentMenu,
       toggleHistoryMenu,
@@ -4034,7 +4174,7 @@ createApp({
       closeLabelAlignmentMenu,
       closeHistoryMenu,
       closeSettingsDialog,
-      createNodeFromMenu,
+      createNodeAtCenter,
       resetGraph,
       applyTemplate,
       saveDiagram,

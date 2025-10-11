@@ -158,6 +158,64 @@ textarea {
   height: 1.1rem;
 }
 
+.sidebar-btn--labelled {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.9rem;
+}
+
+.sidebar-btn--labelled .sidebar-btn-icon {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 0.9rem;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.sidebar-btn--labelled .sidebar-btn-icon svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.sidebar-btn-label {
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text);
+  flex: 1;
+  text-align: left;
+}
+
+.sidebar-btn-chevron {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--muted);
+}
+
+.sidebar-btn--active .sidebar-btn-label,
+.sidebar-btn--active .sidebar-btn-chevron {
+  color: var(--accent-contrast);
+}
+
+.sidebar-section-title {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 .sidebar-card {
   border-radius: 1.25rem;
   border: 1px solid var(--border);
@@ -466,6 +524,7 @@ textarea {
   align-items: center;
   justify-content: center;
   color: var(--muted-strong);
+  flex-shrink: 0;
 }
 
 .shape-icon svg {

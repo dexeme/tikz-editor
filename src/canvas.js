@@ -115,6 +115,12 @@ export function createCanvasRenderer(canvas, state) {
   }
 
   function isNodeSelected(nodeId) {
+    if (Array.isArray(state.selectionDraft)) {
+      const inDraft = state.selectionDraft.some(item => item?.id === nodeId);
+      if (inDraft) {
+        return true;
+      }
+    }
     if (state.selected?.type !== 'node') {
       return false;
     }
@@ -743,6 +749,7 @@ export function createCanvasRenderer(canvas, state) {
     ctx.save();
     applyCameraTransform();
     drawScene();
+    drawSelectionRectangle();
 
     if (state.frame) {
       drawFrame(state.frame);
@@ -810,6 +817,24 @@ export function createCanvasRenderer(canvas, state) {
     state.nodes.forEach(drawNodeHandles);
     drawEdgePreview();
     drawGuides();
+  }
+
+  function drawSelectionRectangle() {
+    const rect = state.selectionRect;
+    if (!rect || rect.width <= 0 || rect.height <= 0) {
+      return;
+    }
+    const scale = getCameraScale();
+    ctx.save();
+    ctx.lineWidth = 1.5 / scale;
+    ctx.fillStyle = 'rgba(99, 102, 241, 0.18)';
+    ctx.strokeStyle = 'rgba(99, 102, 241, 0.55)';
+    ctx.setLineDash([6 / scale, 4 / scale]);
+    ctx.beginPath();
+    ctx.rect(rect.left, rect.top, rect.width, rect.height);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
   }
 
   function drawFrame(frame) {
