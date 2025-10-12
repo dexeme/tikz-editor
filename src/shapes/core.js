@@ -107,6 +107,19 @@ function sanitizeShapeName(rawName) {
   return trimmed || 'circle';
 }
 
+export const rounding = value => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    return '0.00';
+  }
+  return (numeric * 0.1875).toFixed(2);
+};
+
+export const createSimpleShape = (options, libraries = []) => () => ({
+  options,
+  libraries,
+});
+
 function pickColor(node, primaryKey, fallbackKey, defaultValue) {
   if (hasOwn(node, primaryKey)) {
     const color = coerceColor(node[primaryKey]);
