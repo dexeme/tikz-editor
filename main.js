@@ -9,6 +9,11 @@ import {
   nextTick,
 } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.prod.js';
 import { createCanvasRenderer, TEXT_BLOCK_CONSTRAINTS } from './src/canvas.js';
+import {
+  DEFAULT_CYLINDER_MIN_WIDTH_CM,
+  DEFAULT_CYLINDER_MIN_HEIGHT_CM,
+  DEFAULT_CYLINDER_ASPECT,
+} from './src/utils/sceneMetrics.js';
 import { generateTikzDocument } from './src/tikz.js';
 
 const defaultNode = shape => ({
@@ -1440,6 +1445,137 @@ createApp({
       if (changed) {
         pushHistory();
       }
+    }
+
+    const DEFAULT_CYLINDER_INNER_SEP_PT = 1;
+
+    const clampValue = (value, min, max) => Math.min(max, Math.max(min, value));
+
+    function parseNumericPrefix(value, fallback = null) {
+      if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : fallback;
+      }
+      if (typeof value !== 'string') {
+        return fallback;
+      }
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return fallback;
+      }
+      const match = trimmed.match(/^(-?\d*\.?\d+)/);
+      if (!match) {
+        return fallback;
+      }
+      const numeric = Number(match[1]);
+      return Number.isFinite(numeric) ? numeric : fallback;
+    }
+
+    function formatNumeric(value, digits = 1) {
+      if (!Number.isFinite(value)) {
+        return null;
+      }
+      if (digits === 0) {
+        return Math.round(value).toString();
+      }
+      return Number(value.toFixed(digits)).toString();
+    }
+
+    function getCylinderMinimumHeightValue(node) {
+      const numeric = parseNumericPrefix(node?.minimumHeight, DEFAULT_CYLINDER_MIN_HEIGHT_CM);
+      return clampValue(Number.isFinite(numeric) ? numeric : DEFAULT_CYLINDER_MIN_HEIGHT_CM, 1, 50);
+    }
+
+    function getCylinderMinimumWidthValue(node) {
+      const numeric = parseNumericPrefix(node?.minimumWidth, DEFAULT_CYLINDER_MIN_WIDTH_CM);
+      return clampValue(Number.isFinite(numeric) ? numeric : DEFAULT_CYLINDER_MIN_WIDTH_CM, 1, 25);
+    }
+
+    function formatCylinderMinimumHeight(node) {
+      const numeric = parseNumericPrefix(node?.minimumHeight, null);
+      const value = Number.isFinite(numeric) ? numeric : getCylinderMinimumHeightValue(node);
+      const formatted = formatNumeric(value, 1);
+      return formatted ? `${formatted} cm` : '';
+    }
+
+    function formatCylinderMinimumWidth(node) {
+      const numeric = parseNumericPrefix(node?.minimumWidth, null);
+      const value = Number.isFinite(numeric) ? numeric : getCylinderMinimumWidthValue(node);
+      const formatted = formatNumeric(value, 1);
+      return formatted ? `${formatted} cm` : '';
+    }
+
+    function getCylinderInnerSepValue(node, key) {
+      const numeric = parseNumericPrefix(node?.[key], null);
+      if (!Number.isFinite(numeric)) {
+        return DEFAULT_CYLINDER_INNER_SEP_PT;
+      }
+      return clampValue(numeric, 1, 10);
+    }
+
+    function formatCylinderInnerSep(node, key) {
+      const numeric = parseNumericPrefix(node?.[key], null);
+      if (!Number.isFinite(numeric)) {
+        return 'auto';
+      }
+      const formatted = formatNumeric(numeric, 1);
+      return formatted ? `${formatted} pt` : 'auto';
+    }
+
+    function getCylinderAspectSliderValue(node) {
+      const numeric = parseNumericPrefix(node?.aspect, DEFAULT_CYLINDER_ASPECT);
+      const clamped = clampValue(
+        Number.isFinite(numeric) ? numeric : DEFAULT_CYLINDER_ASPECT,
+        0.1,
+        1
+      );
+      return Math.round(clamped * 10);
+    }
+
+    function formatCylinderAspect(node) {
+      const numeric = parseNumericPrefix(node?.aspect, null);
+      const value = Number.isFinite(numeric)
+        ? numeric
+        : getCylinderAspectSliderValue(node) / 10;
+      return value.toFixed(2);
+    }
+
+    function updateCylinderMinimumHeight(value, options = {}) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) {
+        return;
+      }
+      const clamped = clampValue(numeric, 1, 50);
+      const formatted = `${formatNumeric(clamped, 1)}cm`;
+      updateCylinderDimension('minimumHeight', formatted, options);
+    }
+
+    function updateCylinderMinimumWidth(value, options = {}) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) {
+        return;
+      }
+      const clamped = clampValue(numeric, 1, 25);
+      const formatted = `${formatNumeric(clamped, 1)}cm`;
+      updateCylinderDimension('minimumWidth', formatted, options);
+    }
+
+    function updateCylinderInnerSep(key, value, options = {}) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) {
+        return;
+      }
+      const clamped = clampValue(numeric, 1, 10);
+      const formatted = `${formatNumeric(clamped, 1)}pt`;
+      updateCylinderDimension(key, formatted, options);
+    }
+
+    function updateCylinderAspectFromSlider(value, options = {}) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) {
+        return;
+      }
+      const normalized = numeric / 10;
+      updateCylinderAspect(normalized, options);
     }
 
     function updateCylinderProperty(key, value, options = {}) {
@@ -5189,8 +5325,20 @@ createApp({
       setNodeShape,
       updateCylinderRotate,
       updateCylinderBorderRotate,
+      getCylinderMinimumHeightValue,
+      formatCylinderMinimumHeight,
+      updateCylinderMinimumHeight,
+      getCylinderMinimumWidthValue,
+      formatCylinderMinimumWidth,
+      updateCylinderMinimumWidth,
+      getCylinderAspectSliderValue,
+      formatCylinderAspect,
+      updateCylinderAspectFromSlider,
       updateCylinderAspect,
       updateCylinderDimension,
+      getCylinderInnerSepValue,
+      formatCylinderInnerSep,
+      updateCylinderInnerSep,
       updateCylinderCustomFill,
       updateCylinderColor,
       copySelectedFormatting,

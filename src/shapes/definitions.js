@@ -83,8 +83,20 @@ export function registerBuiltInShapes() {
     };
 
     const angle = Number(raw.rotate);
-    if (Number.isFinite(angle) && angle % 360 !== 0) {
-      options.push(`rotate=${formatNumber(angle, 2)}`);
+    const normalizedAngle = Number.isFinite(angle) ? angle : 0;
+    let adjustedAngle = normalizedAngle + 90;
+    if (Number.isFinite(adjustedAngle)) {
+      adjustedAngle %= 360;
+      if (adjustedAngle < -180) {
+        adjustedAngle += 360;
+      } else if (adjustedAngle > 180) {
+        adjustedAngle -= 360;
+      }
+    } else {
+      adjustedAngle = 0;
+    }
+    if (Math.abs(adjustedAngle) > 0.0001) {
+      options.push(`rotate=${formatNumber(adjustedAngle, 2)}`);
     }
 
     const borderRotate = Number(raw.shapeBorderRotate);

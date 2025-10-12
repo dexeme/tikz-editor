@@ -1166,62 +1166,80 @@
                     <div class="inspector-grid">
                       <label class="inspector-field">
                         <span>Altura mínima</span>
-                        <input
-                          class="form-field"
-                          type="text"
-                          :value="selected.item.minimumHeight || ''"
-                          placeholder="Ex.: 2cm"
-                          @input="updateCylinderDimension('minimumHeight', $event.target.value, { commit: false })"
-                          @change="updateCylinderDimension('minimumHeight', $event.target.value, { forceCommit: true })"
-                        >
+                        <div class="inspector-slider">
+                          <input
+                            type="range"
+                            min="1"
+                            max="50"
+                            step="0.1"
+                            :value="getCylinderMinimumHeightValue(selected.item)"
+                            @input="updateCylinderMinimumHeight($event.target.value, { commit: false })"
+                            @change="updateCylinderMinimumHeight($event.target.value, { forceCommit: true })"
+                          >
+                          <span>{{ formatCylinderMinimumHeight(selected.item) }}</span>
+                        </div>
                       </label>
                       <label class="inspector-field">
                         <span>Largura mínima</span>
-                        <input
-                          class="form-field"
-                          type="text"
-                          :value="selected.item.minimumWidth || ''"
-                          placeholder="Ex.: 1.6cm"
-                          @input="updateCylinderDimension('minimumWidth', $event.target.value, { commit: false })"
-                          @change="updateCylinderDimension('minimumWidth', $event.target.value, { forceCommit: true })"
-                        >
+                        <div class="inspector-slider">
+                          <input
+                            type="range"
+                            min="1"
+                            max="25"
+                            step="0.1"
+                            :value="getCylinderMinimumWidthValue(selected.item)"
+                            @input="updateCylinderMinimumWidth($event.target.value, { commit: false })"
+                            @change="updateCylinderMinimumWidth($event.target.value, { forceCommit: true })"
+                          >
+                          <span>{{ formatCylinderMinimumWidth(selected.item) }}</span>
+                        </div>
                       </label>
                     </div>
                     <div class="inspector-grid">
                       <label class="inspector-field">
                         <span>Aspecto</span>
-                        <input
-                          class="form-field"
-                          type="number"
-                          min="0.1"
-                          max="3"
-                          step="0.05"
-                          :value="Number(selected.item.aspect ?? 0.6)"
-                          @input="updateCylinderAspect($event.target.value, { commit: false })"
-                          @change="updateCylinderAspect($event.target.value, { forceCommit: true })"
-                        >
+                        <div class="inspector-slider">
+                          <input
+                            type="range"
+                            min="1"
+                            max="10"
+                            step="1"
+                            :value="getCylinderAspectSliderValue(selected.item)"
+                            @input="updateCylinderAspectFromSlider($event.target.value, { commit: false })"
+                            @change="updateCylinderAspectFromSlider($event.target.value, { forceCommit: true })"
+                          >
+                          <span>{{ formatCylinderAspect(selected.item) }}</span>
+                        </div>
                       </label>
                       <label class="inspector-field">
                         <span>inner xsep</span>
-                        <input
-                          class="form-field"
-                          type="text"
-                          :value="selected.item.innerXsep || ''"
-                          placeholder="Ex.: 4pt"
-                          @input="updateCylinderDimension('innerXsep', $event.target.value, { commit: false })"
-                          @change="updateCylinderDimension('innerXsep', $event.target.value, { forceCommit: true })"
-                        >
+                        <div class="inspector-slider">
+                          <input
+                            type="range"
+                            min="1"
+                            max="10"
+                            step="0.5"
+                            :value="getCylinderInnerSepValue(selected.item, 'innerXsep')"
+                            @input="updateCylinderInnerSep('innerXsep', $event.target.value, { commit: false })"
+                            @change="updateCylinderInnerSep('innerXsep', $event.target.value, { forceCommit: true })"
+                          >
+                          <span>{{ formatCylinderInnerSep(selected.item, 'innerXsep') }}</span>
+                        </div>
                       </label>
                       <label class="inspector-field">
                         <span>inner ysep</span>
-                        <input
-                          class="form-field"
-                          type="text"
-                          :value="selected.item.innerYsep || ''"
-                          placeholder="Ex.: 6pt"
-                          @input="updateCylinderDimension('innerYsep', $event.target.value, { commit: false })"
-                          @change="updateCylinderDimension('innerYsep', $event.target.value, { forceCommit: true })"
-                        >
+                        <div class="inspector-slider">
+                          <input
+                            type="range"
+                            min="1"
+                            max="10"
+                            step="0.5"
+                            :value="getCylinderInnerSepValue(selected.item, 'innerYsep')"
+                            @input="updateCylinderInnerSep('innerYsep', $event.target.value, { commit: false })"
+                            @change="updateCylinderInnerSep('innerYsep', $event.target.value, { forceCommit: true })"
+                          >
+                          <span>{{ formatCylinderInnerSep(selected.item, 'innerYsep') }}</span>
+                        </div>
                       </label>
                     </div>
                     <div class="inspector-grid">
