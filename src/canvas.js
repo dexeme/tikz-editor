@@ -604,7 +604,7 @@ export function createCanvasRenderer(canvas, state) {
     ctx.restore();
 
     const fontSize = Number(node.fontSize) || 16;
-    const lines = (node.label || 'Nó').toString().split(/\n/);
+    const lines = (node.label || 'Node').toString().split(/\n/);
     const lineHeight = fontSize * 1.25;
 
     ctx.fillStyle = '#0f172a';

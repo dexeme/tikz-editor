@@ -71,13 +71,13 @@ assert.ok(horizontalDoc.includes(' -| '), 'Expected horizontal orthogonal path t
 const rightCurveDoc = generateTikzDocument(nodes, [makeBaseEdge({ shape: 'curva-direita' })]);
 assert.ok(
   rightCurveDoc.includes('to[bend right=30]'),
-  'Curva para a direita deve mapear para bend right'
+  'Right curve should map to bend right'
 );
 
 const leftCurveDoc = generateTikzDocument(nodes, [makeBaseEdge({ shape: 'curva-esquerda' })]);
 assert.ok(
   leftCurveDoc.includes('to[bend left=30]'),
-  'Curva para a esquerda deve mapear para bend left'
+  'Left curve should map to bend left'
 );
 
 const centerAlignedStraightDoc = generateTikzDocument(
@@ -90,7 +90,7 @@ const centerAlignedStraightDoc = generateTikzDocument(
 );
 assert.ok(
   centerAlignedStraightDoc.includes('node[pos=0.5, fill=white, inner sep=2pt]{demo}'),
-  'Arestas retas centralizadas devem posicionar o label no ponto médio com pos=0.5'
+  'Centered straight edges should place the label at the midpoint with pos=0.5'
 );
 
 const rightAlignedStraightDoc = generateTikzDocument(
@@ -103,7 +103,7 @@ const rightAlignedStraightDoc = generateTikzDocument(
 );
 assert.ok(
   rightAlignedStraightDoc.includes('node[pos=0.75, fill=white, inner sep=2pt]{demo}'),
-  'Alinhamento à direita deve deslocar o label para a extremidade com pos=0.75'
+  'Right alignment should move the label to the end with pos=0.75'
 );
 
 const leftAlignedStraightDoc = generateTikzDocument(
@@ -116,7 +116,7 @@ const leftAlignedStraightDoc = generateTikzDocument(
 );
 assert.ok(
   leftAlignedStraightDoc.includes('node[pos=0.25, fill=white, inner sep=2pt]{demo}'),
-  'Alinhamento à esquerda deve deslocar o label para o início com pos=0.25'
+  'Left alignment should move the label to the start with pos=0.25'
 );
 
 const centerAlignedCurveDoc = generateTikzDocument(
@@ -129,7 +129,7 @@ const centerAlignedCurveDoc = generateTikzDocument(
 );
 assert.ok(
   centerAlignedCurveDoc.includes('node[midway, fill=white, inner sep=2pt, sloped]{demo}'),
-  'Arestas curvas centralizadas devem usar midway e sloped para acompanhar a curva'
+  'Centered curved edges should use midway and sloped to follow the curve'
 );
 
 const autoOffsetDoc = generateTikzDocument(
@@ -148,7 +148,7 @@ assert.ok(
   /node\[midway, fill=white, inner sep=2pt, (?:xshift=0\.5cm, yshift=0\.3cm|yshift=0\.3cm, xshift=0\.5cm)\]{demo}/.test(
     autoOffsetDoc
   ),
-  'Modo automático deve respeitar deslocamentos configurados nos labels'
+  'Automatic mode should respect configured label offsets'
 );
 
 const nodeBorderDoc = generateTikzDocument(nodes, [makeBaseEdge()], [], [], null, {
@@ -156,7 +156,7 @@ const nodeBorderDoc = generateTikzDocument(nodes, [makeBaseEdge()], [], [], null
 });
 assert.ok(
   /\\node\[draw=customColor\d+, [^\]]*fill=customColor\d+/.test(nodeBorderDoc),
-  'Nós devem exportar a cor da borda personalizada no TikZ'
+  'Nodes should export the custom border color in TikZ'
 );
 
 const looseLineDoc = generateTikzDocument(
@@ -176,7 +176,7 @@ assert.ok(
   /\\draw\[draw=customColor\d+, line width=2\.25pt\] \(0\.00,0\.00\) -- \(8\.00,0\.00\);/.test(
     looseLineDoc
   ),
-  'Linhas livres devem exportar com cor personalizada e espessura convertida'
+  'Loose lines should export with custom color and converted thickness'
 );
 
 const dashedLineDoc = generateTikzDocument(
@@ -195,7 +195,7 @@ const dashedLineDoc = generateTikzDocument(
 );
 assert.ok(
   /\\draw\[dashed, draw=customColor\d+, line width=1\.50pt\]/.test(dashedLineDoc),
-  'Linhas tracejadas devem exportar o estilo dashed'
+  'Dashed lines should export the dashed style'
 );
 
 const framedLineDoc = generateTikzDocument(
@@ -215,21 +215,21 @@ const framedLineDoc = generateTikzDocument(
 );
 assert.ok(
   !framedLineDoc.includes('\\draw['),
-  'Linhas fora do frame devem ser ignoradas na exportação'
+  'Lines outside the frame should be ignored during export'
 );
 
 const multilineNodeDoc = generateTikzDocument(
   [
     {
       ...makeNode('C', 80, -40),
-      label: 'Primeira linha\nSegunda linha',
+      label: 'First line\nSecond line',
     },
   ],
   []
 );
 assert.ok(
-  multilineNodeDoc.includes('{Primeira linha \\\\ Segunda linha}'),
-  'Nós com múltiplas linhas devem inserir \\ antes de cada nova linha no LaTeX'
+  multilineNodeDoc.includes('{First line \\\\ Second line}'),
+  'Multi-line nodes should insert \\\\ before each new line in LaTeX'
 );
 
 const matrixDoc = generateTikzDocument(
@@ -252,17 +252,17 @@ const matrixDoc = generateTikzDocument(
 );
 assert.ok(
   matrixDoc.includes('\\begin{scope}[shift={(5cm,-10cm)}]'),
-  'A matriz deve aplicar um escopo deslocado conforme a posição no canvas'
+  'The matrix should apply a shifted scope based on its canvas position'
 );
 assert.ok(
   /\\fill\[customColor\d+\] \(0\.00,-0\.20\) rectangle \+\+\(0\.20,0\.20\);/.test(
     matrixDoc
   ),
-  'As células da matriz devem ser exportadas como retângulos preenchidos com escala convertida'
+  'Matrix cells should export as filled rectangles with converted scale'
 );
 assert.ok(
   matrixDoc.includes('\\definecolor'),
-  'As cores personalizadas das matrizes devem ser declaradas no preâmbulo'
+  'Custom matrix colors should be declared in the preamble'
 );
 
 console.log('All routing mapping tests passed');

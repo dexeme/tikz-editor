@@ -17,7 +17,7 @@ import {
 import { generateTikzDocument } from './src/tikz.js';
 
 const defaultNode = shape => ({
-  label: 'Novo nó',
+  label: 'New node',
   color: '#f8fafc',
   borderColor: '#94a3b8',
   shape: shape || 'circle',
@@ -206,7 +206,7 @@ function makeTextBlock(x, y, width, height) {
     y,
     width,
     height,
-    text: 'Novo texto',
+    text: 'New text',
     fontSize: 16,
     fontWeight: 500,
   };
@@ -282,12 +282,12 @@ createApp({
     const canRedo = computed(() => history.future.length > 0);
 
     const availableShapes = [
-      { id: 'rectangle', label: 'Retângulo', shortcut: 'R' },
-      { id: 'circle', label: 'Círculo', shortcut: 'C' },
-      { id: 'cylinder', label: 'Cilindro', shortcut: 'Y' },
-      { id: 'decision', label: 'Nó de decisão', shortcut: 'D' },
-      { id: 'diamond', label: 'Losango', shortcut: 'G' },
-      { id: 'triangle', label: 'Triângulo', shortcut: 'T' },
+      { id: 'rectangle', label: 'Rectangle', shortcut: 'R' },
+      { id: 'circle', label: 'Circle', shortcut: 'C' },
+      { id: 'cylinder', label: 'Cylinder', shortcut: 'Y' },
+      { id: 'decision', label: 'Decision node', shortcut: 'D' },
+      { id: 'diamond', label: 'Diamond', shortcut: 'G' },
+      { id: 'triangle', label: 'Triangle', shortcut: 'T' },
     ];
     const activeShapeId = ref(availableShapes[0]?.id || null);
     const activeShape = computed(() =>
@@ -419,30 +419,30 @@ createApp({
     ]);
     const recentColorPalette = computed(() => [...recentColors]);
     const nodeToolbarLabels = {
-      fill: 'Cor de preenchimento',
-      stroke: 'Cor da borda',
-      borderWidth: 'Espessura da borda',
-      fontSize: 'Tamanho da fonte',
-      shape: 'Formato do nó',
-      copy: 'Copiar formatação',
-      paste: 'Colar formatação',
-      cornerRadius: 'Arredondamento',
-      remove: 'Remover nó',
+      fill: 'Fill color',
+      stroke: 'Border color',
+      borderWidth: 'Border width',
+      fontSize: 'Font size',
+      shape: 'Node shape',
+      copy: 'Copy formatting',
+      paste: 'Paste formatting',
+      cornerRadius: 'Corner radius',
+      remove: 'Remove node',
     };
     const edgeToolbarLabels = {
-      color: 'Cor da aresta',
-      style: 'Estilo da aresta',
-      direction: 'Direção da flecha',
-      thickness: 'Espessura da aresta',
-      alignment: 'Alinhamento do rótulo',
-      copy: 'Copiar formatação',
-      paste: 'Colar formatação',
-      remove: 'Remover aresta',
+      color: 'Edge color',
+      style: 'Edge style',
+      direction: 'Arrow direction',
+      thickness: 'Edge thickness',
+      alignment: 'Label alignment',
+      copy: 'Copy formatting',
+      paste: 'Paste formatting',
+      remove: 'Remove edge',
     };
     const fontSizeOptions = [
-      { value: '12', label: 'Pequena' },
-      { value: '16', label: 'Média' },
-      { value: '20', label: 'Grande' },
+      { value: '12', label: 'Small' },
+      { value: '16', label: 'Medium' },
+      { value: '20', label: 'Large' },
     ];
     const nodeToolbarHint = computed(() => {
       if (nodeToolbarState.hoveredOption) {
@@ -459,7 +459,7 @@ createApp({
           edgeToolbarState.activePopover === 'alignment') &&
         !hasSelectedEdgeLabel.value;
       if (showAlignmentReminder) {
-        return 'Adicione um rótulo na aresta para ajustar o alinhamento.';
+        return 'Add a label to the edge to adjust alignment.';
       }
       if (edgeToolbarState.hoveredOption) {
         return edgeToolbarLabels[edgeToolbarState.hoveredOption] || '';
@@ -588,20 +588,20 @@ createApp({
     const templates = [
       {
         id: 'blank-canvas',
-        name: 'Canvas em branco',
-        description: 'Limpe o editor e comece um diagrama do zero.',
+        name: 'Blank canvas',
+        description: 'Clear the editor and start a new diagram from scratch.',
         nodes: [],
         edges: [],
         textBlocks: [],
       },
       {
         id: 'linear-flow',
-        name: 'Fluxo linear de etapas',
-        description: 'Modelo com três estágios sequenciais para fluxos simples.',
+        name: 'Linear step flow',
+        description: 'Template with three sequential stages for simple flows.',
         nodes: [
           {
             id: 'tpl-linear-start',
-            label: 'Ideia inicial',
+            label: 'Initial idea',
             color: '#bae6fd',
             shape: 'rectangle',
             fontSize: '16',
@@ -610,7 +610,7 @@ createApp({
           },
           {
             id: 'tpl-linear-review',
-            label: 'Revisão e ajuste',
+            label: 'Review and adjust',
             color: '#fef3c7',
             shape: 'rectangle',
             fontSize: '16',
@@ -619,7 +619,7 @@ createApp({
           },
           {
             id: 'tpl-linear-delivery',
-            label: 'Entrega final',
+            label: 'Final delivery',
             color: '#bbf7d0',
             shape: 'rectangle',
             fontSize: '16',
@@ -638,7 +638,7 @@ createApp({
             direction: '->',
             shape: 'straight',
             bend: 30,
-            label: { text: 'Planejar', position: 'auto' },
+            label: { text: 'Plan', position: 'auto' },
           },
           {
             id: 'tpl-linear-e2',
@@ -650,7 +650,7 @@ createApp({
             direction: '->',
             shape: 'straight',
             bend: 30,
-            label: { text: 'Executar', position: 'auto' },
+            label: { text: 'Execute', position: 'auto' },
           },
         ],
         textBlocks: [
@@ -660,7 +660,7 @@ createApp({
             y: 320,
             width: 360,
             height: 120,
-            text: 'Use este fluxo para documentar rapidamente pipelines simples. Dê duplo clique para adaptar os rótulos.',
+            text: 'Use this flow to quickly document simple pipelines. Double-click to adapt the labels.',
             fontSize: 16,
             fontWeight: 500,
           },
@@ -668,12 +668,12 @@ createApp({
       },
       {
         id: 'decision-tree',
-        name: 'Árvore de decisão',
-        description: 'Estrutura ramificada com decisão e dois resultados.',
+        name: 'Decision tree',
+        description: 'Branched structure with a decision and two outcomes.',
         nodes: [
           {
             id: 'tpl-decision-start',
-            label: 'Situação atual',
+            label: 'Current situation',
             color: '#e0f2fe',
             shape: 'circle',
             fontSize: '16',
@@ -682,7 +682,7 @@ createApp({
           },
           {
             id: 'tpl-decision-choice',
-            label: 'Tomar decisão?',
+            label: 'Make a decision?',
             color: '#fde68a',
             shape: 'decision',
             fontSize: '16',
@@ -691,7 +691,7 @@ createApp({
           },
           {
             id: 'tpl-decision-yes',
-            label: 'Resultado positivo',
+            label: 'Positive outcome',
             color: '#bbf7d0',
             shape: 'rectangle',
             fontSize: '16',
@@ -700,7 +700,7 @@ createApp({
           },
           {
             id: 'tpl-decision-no',
-            label: 'Plano alternativo',
+            label: 'Alternative plan',
             color: '#fecdd3',
             shape: 'rectangle',
             fontSize: '16',
@@ -731,7 +731,7 @@ createApp({
             direction: '->',
             shape: '90-horizontal',
             bend: 30,
-            label: { text: 'Sim', position: 'auto' },
+            label: { text: 'Yes', position: 'auto' },
           },
           {
             id: 'tpl-decision-e3',
@@ -743,19 +743,19 @@ createApp({
             direction: '->',
             shape: '90-horizontal',
             bend: 30,
-            label: { text: 'Não', position: 'auto' },
+            label: { text: 'No', position: 'auto' },
           },
         ],
         textBlocks: [],
       },
       {
         id: 'pseudoentropy-views',
-        name: 'Pseudoentropia: visões clássicas',
-        description: 'Diagrama comparando as visões de Yao, Hill e Métrica.',
+        name: 'Pseudoentropy: classical views',
+        description: 'Diagram comparing the views of Yao, Hill, and Metric.',
         nodes: [
           {
             id: 'tpl-pseudo-source',
-            label: "Distribuição de Probabilidade\n'X'",
+            label: "Probability distribution\n'X'",
             color: '#f0f0f0',
             shape: 'rectangle',
             fontSize: '16',
@@ -764,7 +764,7 @@ createApp({
           },
           {
             id: 'tpl-pseudo-goal',
-            label: 'Qual o objetivo\ndo adversário?',
+            label: 'What is the adversary\'s goal?',
             color: '#ffe6cc',
             shape: 'diamond',
             fontSize: '16',
@@ -773,7 +773,7 @@ createApp({
           },
           {
             id: 'tpl-pseudo-yao',
-            label: 'Visão de YAO\n(Pseudoentropia via Compressão)\nAtacante: Construtivo',
+            label: 'YAO\'s view\n(Pseudoentropy via Compression)\nAttacker: Constructive',
             color: '#e6e6ff',
             shape: 'rectangle',
             fontSize: '16',
@@ -782,7 +782,7 @@ createApp({
           },
           {
             id: 'tpl-pseudo-choice',
-            label: 'Comparação:\nUMA vs. CONJUNTO?',
+            label: 'Comparison:\nONE vs. SET?',
             color: '#ffe6cc',
             shape: 'diamond',
             fontSize: '16',
@@ -791,7 +791,7 @@ createApp({
           },
           {
             id: 'tpl-pseudo-hill',
-            label: 'Visão de HILL\n(Pseudoentropia via Indistinguibilidade)\nAtacante: Decisório',
+            label: 'HILL\'s view\n(Pseudoentropy via Indistinguishability)\nAttacker: Decision',
             color: '#e6e6ff',
             shape: 'rectangle',
             fontSize: '16',
@@ -800,7 +800,7 @@ createApp({
           },
           {
             id: 'tpl-pseudo-metric',
-            label: 'Visão MÉTRICA\n(Pseudoentropia via Métrica)\nAtacante: Decisório',
+            label: 'METRIC view\n(Pseudoentropy via Metric)\nAttacker: Decision',
             color: '#e6e6ff',
             shape: 'rectangle',
             fontSize: '16',
@@ -831,7 +831,7 @@ createApp({
             direction: '->',
             shape: '90-vertical',
             bend: 30,
-            label: { text: 'COMPRIMIR', position: 'auto' },
+            label: { text: 'COMPRESS', position: 'auto' },
           },
           {
             id: 'tpl-pseudo-e3',
@@ -843,7 +843,7 @@ createApp({
             direction: '->',
             shape: '90-horizontal',
             bend: 30,
-            label: { text: 'DISTINGUIR', position: 'auto' },
+            label: { text: 'DISTINGUISH', position: 'auto' },
           },
           {
             id: 'tpl-pseudo-e4',
@@ -855,7 +855,7 @@ createApp({
             direction: '->',
             shape: 'straight',
             bend: 30,
-            label: { text: 'Contra UMA', position: 'auto' },
+            label: { text: 'Against ONE', position: 'auto' },
           },
           {
             id: 'tpl-pseudo-e5',
@@ -867,7 +867,7 @@ createApp({
             direction: '->',
             shape: '90-horizontal',
             bend: 30,
-            label: { text: 'Contra o CONJUNTO', position: 'auto' },
+            label: { text: 'Against the SET', position: 'auto' },
           },
           {
             id: 'tpl-pseudo-e6',
@@ -879,7 +879,7 @@ createApp({
             direction: '->',
             shape: 'straight',
             bend: 30,
-            label: { text: 'implica', position: 'auto' },
+            label: { text: 'implies', position: 'auto' },
           },
           {
             id: 'tpl-pseudo-e7',
@@ -891,7 +891,7 @@ createApp({
             direction: '->',
             shape: 'straight',
             bend: 30,
-            label: { text: 'implica', position: 'auto' },
+            label: { text: 'implies', position: 'auto' },
           },
         ],
         textBlocks: [],
@@ -1014,14 +1014,14 @@ createApp({
           return stored;
         }
       } catch (storageError) {
-        console.warn('Não foi possível ler o tema salvo:', storageError);
+        console.warn('Could not read the saved theme:', storageError);
       }
       try {
         if (window.matchMedia?.('(prefers-color-scheme: light)').matches) {
           return 'light';
         }
       } catch (matchError) {
-        console.warn('Falha ao consultar o tema preferido do sistema:', matchError);
+        console.warn('Failed to query the system preferred theme:', matchError);
       }
       return null;
     }
@@ -1042,7 +1042,7 @@ createApp({
         try {
           window.localStorage?.setItem('tikz-theme', theme);
         } catch (storageError) {
-          console.warn('Não foi possível salvar o tema selecionado:', storageError);
+          console.warn('Could not save the selected theme:', storageError);
         }
         renderer.value?.draw();
       },
@@ -1075,14 +1075,14 @@ createApp({
 
     function parseMatrixFromText(raw) {
       if (typeof raw !== 'string') {
-        throw new Error('Conteúdo inválido.');
+        throw new Error('Invalid content.');
       }
       const lines = raw
         .split(/\r?\n/)
         .map(line => line.trim())
         .filter(Boolean);
       if (!lines.length) {
-        throw new Error('O arquivo não contém dados de matriz.');
+        throw new Error('The file does not contain matrix data.');
       }
       const rows = lines
         .map(line =>
@@ -1093,12 +1093,12 @@ createApp({
         )
         .filter(cells => cells.length > 0);
       if (!rows.length) {
-        throw new Error('O arquivo não contém dados de matriz.');
+        throw new Error('The file does not contain matrix data.');
       }
       const columnCount = rows[0].length;
       const inconsistent = rows.some(row => row.length !== columnCount);
       if (inconsistent) {
-        throw new Error('Todas as linhas devem ter o mesmo número de colunas.');
+        throw new Error('All rows must have the same number of columns.');
       }
       return rows.map(row => row.map(value => value));
     }
@@ -1351,16 +1351,16 @@ createApp({
       if (type === 'fill') {
         const added = ensureCustomSwatch('fill', nodeToolbarState.fillCustomColor);
         if (added) {
-          flash('Cor adicionada à paleta de preenchimento.');
+          flash('Color added to the fill palette.');
         } else {
-          flash('Essa cor já está disponível na paleta.');
+          flash('That color is already in the palette.');
         }
       } else if (type === 'stroke') {
         const added = ensureCustomSwatch('stroke', nodeToolbarState.strokeCustomColor);
         if (added) {
-          flash('Cor adicionada à paleta de borda.');
+          flash('Color added to the border palette.');
         } else {
-          flash('Essa cor já está disponível na paleta.');
+          flash('That color is already in the palette.');
         }
       }
     }
@@ -1665,7 +1665,7 @@ createApp({
           fontSize: String(node.fontSize || '16'),
           cornerRadius: Number(node.cornerRadius) || 16,
         };
-        flash('Formatação do nó copiada.');
+        flash('Node formatting copied.');
         return;
       }
       if (edge) {
@@ -1678,7 +1678,7 @@ createApp({
           thickness:
             Number.isFinite(rawThickness) && rawThickness > 0 ? rawThickness : null,
         };
-        flash('Formatação da aresta copiada.');
+        flash('Edge formatting copied.');
         return;
       }
       if (line) {
@@ -1690,7 +1690,7 @@ createApp({
           thickness:
             Number.isFinite(rawThickness) && rawThickness > 0 ? rawThickness : null,
         };
-        flash('Formatação da linha copiada.');
+        flash('Line formatting copied.');
       }
     }
 
@@ -1755,13 +1755,13 @@ createApp({
         if (changed) {
           pushHistory();
           const message = nodes.length > 1
-            ? 'Formatação aplicada aos nós selecionados.'
-            : 'Formatação aplicada ao nó selecionado.';
+            ? 'Formatting applied to the selected nodes.'
+            : 'Formatting applied to the selected node.';
           flash(message);
         } else {
           const message = nodes.length > 1
-            ? 'Todos os nós selecionados já tinham essa formatação.'
-            : 'A formatação já está aplicada neste nó.';
+            ? 'All selected nodes already had this formatting.'
+            : 'The formatting is already applied to this node.';
           flash(message);
         }
         return;
@@ -1809,9 +1809,9 @@ createApp({
         }
         if (changed) {
           pushHistory();
-          flash('Formatação aplicada à aresta selecionada.');
+          flash('Formatting applied to the selected edge.');
         } else {
-          flash('A formatação já está aplicada nesta aresta.');
+          flash('Formatting is already applied to this edge.');
         }
         return;
       }
@@ -1851,9 +1851,9 @@ createApp({
         }
         if (changed) {
           pushHistory();
-          flash('Formatação aplicada à linha selecionada.');
+          flash('Formatting applied to the selected line.');
         } else {
-          flash('A formatação já está aplicada nesta linha.');
+          flash('Formatting is already applied to this line.');
         }
       }
     }
@@ -1876,7 +1876,7 @@ createApp({
 
     function toggleEdgePopover(id) {
       if (id === 'alignment' && !hasSelectedEdgeLabel.value) {
-        flash('Adicione um rótulo à aresta antes de ajustar o alinhamento.');
+        flash('Add a label to the edge before adjusting alignment.');
         return;
       }
       edgeToolbarState.activePopover = edgeToolbarState.activePopover === id ? null : id;
@@ -2018,7 +2018,7 @@ createApp({
       const edge = selectedEdge.value;
       const label = edge?.label;
       if (!edge || !label || typeof label.text !== 'string' || !label.text.trim()) {
-        flash('Adicione um rótulo à aresta antes de ajustar o alinhamento.');
+        flash('Add a label to the edge before adjusting alignment.');
         return;
       }
       const normalized = alignment || 'auto';
@@ -2057,10 +2057,10 @@ createApp({
         const text = await file.text();
         const payload = JSON.parse(text);
         applyDiagramPayload(payload);
-        flash('Diagrama carregado a partir do arquivo JSON.');
+        flash('Diagram loaded from the JSON file.');
       } catch (error) {
-        console.error('Falha ao carregar diagrama', error);
-        flash('Não foi possível carregar o arquivo. Verifique se é um JSON válido.');
+        console.error('Failed to load diagram', error);
+        flash('Could not load the file. Make sure it is valid JSON.');
       } finally {
         event.target.value = '';
       }
@@ -2089,19 +2089,19 @@ createApp({
     function confirmMatrixPrompt() {
       const text = matrixPrompt.text.trim();
       if (!text) {
-        matrixPrompt.error = 'Cole os dados da matriz ou selecione um arquivo.';
+      matrixPrompt.error = 'Paste the matrix data or select a file.';
         return;
       }
       try {
         const matrix = parseMatrixFromText(text);
-        prepareMatrixImport(matrix, 'entrada manual', { replaceQueue: true });
+        prepareMatrixImport(matrix, 'manual input', { replaceQueue: true });
         closeMatrixPrompt();
       } catch (error) {
-        console.error('Falha ao importar matriz colada', error);
+        console.error('Failed to import pasted matrix', error);
         matrixPrompt.error =
           error instanceof Error && error.message
             ? error.message
-            : 'Não foi possível interpretar o conteúdo informado.';
+            : 'Could not interpret the provided content.';
       }
     }
 
@@ -2110,7 +2110,7 @@ createApp({
       if (!files.length) return;
       try {
         const sortedFiles = files.sort((a, b) =>
-          a.name.localeCompare(b.name, 'pt-BR', { numeric: true, sensitivity: 'base' })
+          a.name.localeCompare(b.name, 'en-US', { numeric: true, sensitivity: 'base' })
         );
         const successes = [];
         const failures = [];
@@ -2120,11 +2120,11 @@ createApp({
             const matrix = parseMatrixFromText(text);
             successes.push({ data: matrix, fileName: file.name });
           } catch (error) {
-            console.error('Falha ao importar matriz', error);
+            console.error('Failed to import matrix', error);
             const message =
               error instanceof Error && error.message
                 ? error.message
-                : 'Não foi possível importar o arquivo selecionado. Verifique se é um CSV válido.';
+                : 'Could not import the selected file. Make sure it is a valid CSV.';
             failures.push({ fileName: file.name, message });
           }
         }
@@ -2133,14 +2133,14 @@ createApp({
           closeMatrixPrompt();
           if (failures.length) {
             const failedNames = failures.map(failure => failure.fileName).join(', ');
-            flash(`Alguns arquivos não puderam ser importados: ${failedNames}.`);
+            flash(`Some files could not be imported: ${failedNames}.`);
           }
         } else if (failures.length) {
           const firstFailure = failures[0];
           const combinedMessage =
             failures.length === 1
-              ? `Não foi possível importar ${firstFailure.fileName}: ${firstFailure.message}`
-              : 'Não foi possível importar os arquivos selecionados. Verifique se são CSVs válidos.';
+              ? `Could not import ${firstFailure.fileName}: ${firstFailure.message}`
+              : 'Could not import the selected files. Make sure they are valid CSVs.';
           if (matrixPrompt.visible) {
             matrixPrompt.error = combinedMessage;
           } else {
@@ -2168,7 +2168,7 @@ createApp({
       const rows = data.length;
       const columns = rows > 0 ? data[0].length : 0;
       if (!rows || !columns) {
-        flash('A matriz importada está vazia. Selecione outro arquivo.');
+        flash('The imported matrix is empty. Select another file.');
         resetMatrixImportState();
         return;
       }
@@ -2204,14 +2204,14 @@ createApp({
       pushHistory();
       invalidateTikz();
       renderer.value?.draw();
-      flash('Matriz importada. Arraste para reposicionar.');
+      flash('Matrix imported. Drag to reposition.');
       resetMatrixImportState();
       loadNextMatrixFromQueue();
     }
 
     function applyDiagramPayload(payload) {
       if (!payload || typeof payload !== 'object') {
-        throw new Error('Payload inválido');
+        throw new Error('Invalid payload');
       }
       const nodes = Array.isArray(payload.nodes)
         ? payload.nodes.map(node => normalizeNode({ ...node }))
@@ -2471,7 +2471,7 @@ createApp({
         '<style>html,body{margin:0;height:100%;overflow:hidden;background:#ffffff;color:#0f172a;font-family:\'Inter\',system-ui,sans-serif;}body{display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;}svg{max-width:100%;height:auto;} .loading{color:#475569;font-size:0.9rem;}</style>',
         '</head>',
         '<body>',
-        '<div class="loading">Carregando pré-visualização…</div>',
+        '<div class="loading">Loading preview…</div>',
         '<script type="text/tikz" data-latex>',
         scriptContents,
         '</script>',
@@ -2496,7 +2496,7 @@ createApp({
         '          }, "*");',
         '        }',
         '      } catch (error) {',
-        '        console.error(\'Não foi possível calcular os limites do SVG gerado pelo TikZ\', error);',
+        '        console.error(\'Could not compute the bounds of the TikZ-generated SVG\', error);',
         '      }',
         '    };',
         '    const observer = new MutationObserver(() => {',
@@ -2756,17 +2756,17 @@ createApp({
 
     const currentHint = computed(() => {
       if (state.drawing?.type === 'forms' || state.mode === 'forms') {
-        return 'arrastar para criar uma nova forma';
+        return 'drag to create a new shape';
       }
       if (state.drawing?.type === 'frame' || state.mode === 'frame') {
-        return 'arrastar para definir o frame';
+        return 'drag to define the frame';
       }
       if (state.drawing?.type === 'line' || state.mode === 'line') {
-        return 'clique e arraste para criar uma linha livre';
+        return 'click and drag to create a free line';
       }
       return state.edgeDraft
-        ? 'ligar a aresta ao nó de destino'
-        : 'selecionar elementos ou arrastar conectores para criar arestas';
+        ? 'connect the edge to the target node'
+        : 'select elements or drag connectors to create edges';
     });
 
     const canReset = computed(
@@ -3246,7 +3246,7 @@ createApp({
       if (!options.silent) {
         flash(
           options.message ||
-            'Novo nó adicionado. Arraste para reposicionar e conecte pelos pontos azuis.'
+            'New node added. Drag to reposition and connect using the blue handles.'
         );
       }
       return node;
@@ -3300,7 +3300,7 @@ createApp({
       clearGuides();
       clearSelectionBox();
       pushHistory();
-      flash('O diagrama foi limpo. Comece adicionando novos elementos.');
+      flash('The diagram was cleared. Start by adding new elements.');
       renderer.value?.draw();
     }
 
@@ -3311,7 +3311,7 @@ createApp({
       const requiresConfirmation = canReset.value;
       if (requiresConfirmation) {
         const confirmed = window.confirm(
-          'Carregar um modelo substituirá o diagrama atual. Deseja continuar?'
+          'Loading a template will replace the current diagram. Continue?'
         );
         if (!confirmed) {
           return;
@@ -3344,7 +3344,7 @@ createApp({
       invalidateTikz();
       renderer.value?.draw();
       showTemplateBrowser.value = false;
-      flash(`Modelo "${template.name}" carregado. Ajuste conforme necessário.`);
+      flash(`Template "${template.name}" loaded. Adjust as needed.`);
     }
 
     function selectNode(node, options = {}) {
@@ -3457,7 +3457,7 @@ createApp({
       state.selected = null;
       pushHistory();
       if (!options.silent) {
-        flash('Elemento removido do canvas.');
+        flash('Element removed from the canvas.');
       }
     }
 
@@ -3475,7 +3475,7 @@ createApp({
       nextTick(() => {
         fitFrameInView();
         pushHistory();
-        flash('Frame criado. Ajuste as dimensões conforme necessário.');
+        flash('Frame created. Adjust the dimensions as needed.');
       });
     }
 
@@ -3485,7 +3485,7 @@ createApp({
       clearGuides();
       renderer.value?.draw();
       pushHistory();
-      flash('Frame removido. O canvas volta a mostrar todo o conteúdo.');
+      flash('Frame removed. The canvas now shows all content.');
     }
 
     function copySelection(options = {}) {
@@ -3559,7 +3559,7 @@ createApp({
           },
         };
         if (!options?.silent) {
-          flash('Bloco de texto copiado. Use Ctrl+V para colar.');
+          flash('Text block copied. Use Ctrl+V to paste.');
         }
         return true;
       }
@@ -3577,7 +3577,7 @@ createApp({
           },
         };
         if (!options?.silent) {
-          flash('Matriz copiada. Use Ctrl+V para colar.');
+          flash('Matrix copied. Use Ctrl+V to paste.');
         }
         return true;
       }
@@ -3597,7 +3597,7 @@ createApp({
     function pasteSelection(options = {}) {
       const payload = options.clipboard || clipboard.value;
       if (!payload) {
-        flash('Não há conteúdo copiado para colar.');
+        flash('There is no copied content to paste.');
         return false;
       }
       const anchor = getPasteAnchor(options);
@@ -3707,7 +3707,7 @@ createApp({
         return;
       }
       removeSelected({ silent: true });
-      flash('Elementos recortados. Use Ctrl+V para colar.');
+      flash('Elements cut. Use Ctrl+V to paste.');
     }
 
     function duplicateSelection() {
@@ -3912,7 +3912,7 @@ createApp({
         const node = spawnNode(center, shapeId, { silent: true });
         if (node) {
           invalidateTikz();
-          flash('Forma criada.');
+          flash('Shape created.');
           created = true;
         }
       } else if (draft.type === 'frame') {
@@ -3932,7 +3932,7 @@ createApp({
           };
           pushHistory();
           invalidateTikz();
-          flash('Frame criado.');
+          flash('Frame created.');
           created = true;
         }
       } else if (draft.type === 'line') {
@@ -3944,7 +3944,7 @@ createApp({
           setSelected({ type: 'line', item: line });
           pushHistory();
           invalidateTikz();
-          flash('Linha criada.');
+          flash('Line created.');
           created = true;
         }
       }
@@ -4648,7 +4648,7 @@ createApp({
             }
             if (changed) {
               pushHistory();
-              flash('Conexão da aresta atualizada.');
+              flash('Edge connection updated.');
             }
             setSelected({ type: 'edge', item: edge });
           }
@@ -4660,7 +4660,7 @@ createApp({
           setSelected({ type: 'edge', item: newEdge });
           state.mode = 'move';
           pushHistory();
-          flash('Aresta criada com sucesso.');
+          flash('Edge created successfully.');
         }
         state.edgeDraft = null;
         renderer.value?.draw();
@@ -4914,7 +4914,7 @@ createApp({
       history.future.push(current);
       const previous = history.past[history.past.length - 1];
       applySnapshot(previous);
-      flash('Ação desfeita.');
+      flash('Action undone.');
     }
 
     function redo() {
@@ -4922,7 +4922,7 @@ createApp({
       const nextState = history.future.pop();
       history.past.push(nextState);
       applySnapshot(nextState);
-      flash('Ação refeita.');
+      flash('Action redone.');
     }
 
     function saveDiagram() {
@@ -4944,9 +4944,9 @@ createApp({
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const defaultName = `diagrama-${timestamp}`;
+      const defaultName = `diagram-${timestamp}`;
       const requestedName = window.prompt(
-        'Informe o nome do arquivo (sem extensão):',
+        'Enter the file name (without extension):',
         defaultName
       );
       const sanitizedName = (() => {
@@ -4968,13 +4968,13 @@ createApp({
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      flash(`Diagrama exportado como ${sanitizedName}.json.`);
+      flash(`Diagram exported as ${sanitizedName}.json.`);
     }
 
     async function copyToClipboard() {
       try {
         await navigator.clipboard.writeText(tikzCode.value);
-        flash('Código TikZ copiado para a área de transferência.');
+        flash('TikZ code copied to the clipboard.');
       } catch (error) {
         const textarea = document.createElement('textarea');
         textarea.value = tikzCode.value;
@@ -4987,12 +4987,12 @@ createApp({
           const success = document.execCommand('copy');
           flash(
             success
-              ? 'Código TikZ copiado para a área de transferência.'
-              : 'Não foi possível copiar automaticamente. Selecione o texto manualmente.'
+              ? 'TikZ code copied to the clipboard.'
+              : 'Could not copy automatically. Select the text manually.'
           );
         } catch (fallbackError) {
-          console.error('Falha ao copiar', fallbackError);
-          flash('Não foi possível copiar automaticamente. Selecione o texto manualmente.');
+          console.error('Failed to copy', fallbackError);
+          flash('Could not copy automatically. Select the text manually.');
         } finally {
           document.body.removeChild(textarea);
         }

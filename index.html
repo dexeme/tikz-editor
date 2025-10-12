@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -54,16 +54,16 @@
                 role="menu"
               >
                 <button type="button" role="menuitem" @click="closeDiagramMenu(); triggerLoadDiagram()">
-                  <span>Carregar diagrama…</span>
+                  <span>Load diagram…</span>
                 </button>
                 <button type="button" role="menuitem" :disabled="!canReset" @click="closeDiagramMenu(); saveDiagram()">
-                  <span>Salvar diagrama…</span>
+                  <span>Save diagram…</span>
                 </button>
                 <button type="button" role="menuitem" :disabled="!tikzCode" @click="closeDiagramMenu(); copyToClipboard()">
-                  <span>Copiar código TikZ</span>
+                  <span>Copy TikZ code</span>
                 </button>
                 <button type="button" role="menuitem" @click="closeDiagramMenu(); triggerMatrixImport()">
-                  <span>Importar matriz…</span>
+                  <span>Import matrix…</span>
                 </button>
               </div>
             </div>
@@ -74,7 +74,7 @@
               class="icon-button"
               :class="{ active: showTemplateBrowser }"
               @click="toggleTemplateBrowser"
-              aria-label="Abrir galeria de templates"
+              aria-label="Open template gallery"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z" />
@@ -85,7 +85,7 @@
               class="icon-button"
               :class="{ active: showSettingsDialog }"
               @click="toggleSettingsDialog"
-              aria-label="Abrir configurações"
+              aria-label="Open settings"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M11.25 3.5h1.5l.45 2.4a6.5 6.5 0 0 1 1.74.72l2.2-1.26 1.06 1.06-1.26 2.2c.27.54.5 1.13.66 1.74l2.43.44v1.5l-2.43.45a6.6 6.6 0 0 1-.66 1.74l1.26 2.2-1.06 1.06-2.2-1.26a6.5 6.5 0 0 1-1.74.72l-.45 2.4h-1.5l-.45-2.4a6.5 6.5 0 0 1-1.74-.72l-2.2 1.26-1.06-1.06 1.26-2.2a6.6 6.6 0 0 1-.66-1.74l-2.43-.45v-1.5l2.43-.45c.16-.61.39-1.2.66-1.74l-1.26-2.2 1.06-1.06 2.2 1.26a6.5 6.5 0 0 1 1.74-.72l.45-2.4z" />
@@ -93,7 +93,7 @@
               </svg>
             </button>
             <button type="button" class="primary-button" @click="copyToClipboard" :disabled="!tikzCode">
-              Copiar TikZ
+              Copy TikZ
             </button>
           </div>
         </header>
@@ -117,7 +117,7 @@
                         ref="nodeToolbarRef"
                         class="selection-toolbar"
                         role="toolbar"
-                        aria-label="Opções do nó selecionado"
+                        aria-label="Selected node options"
                         :style="nodeToolbarStyle"
                       >
                         <div
@@ -125,7 +125,7 @@
                           class="selection-toolbar-meta"
                           aria-live="polite"
                         >
-                          Aplicando em {{ selectedNodes.length }} nós
+                          Applying to {{ selectedNodes.length }} nodes
                         </div>
                         <div class="selection-toolbar-row">
                           <div class="toolbar-item" @mouseenter="setNodeToolbarHover('fill')" @mouseleave="setNodeToolbarHover(null)">
@@ -134,7 +134,7 @@
                               class="toolbar-action"
                               :class="{ active: nodeToolbarState.activePopover === 'fill' }"
                               @click.stop="toggleNodePopover('fill')"
-                              aria-label="Cor de preenchimento"
+                              aria-label="Fill color"
                             >
                               <span class="toolbar-icon" aria-hidden="true">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -145,7 +145,7 @@
                             </button>
                             <div v-if="nodeToolbarState.activePopover === 'fill'" class="selection-popover">
                               <div v-if="recentColorPalette.length" class="swatch-group">
-                                <p class="swatch-group-label">Recentes</p>
+                                <p class="swatch-group-label">Recent</p>
                                 <div class="swatch-grid">
                                   <button
                                     v-for="color in recentColorPalette"
@@ -153,13 +153,13 @@
                                     type="button"
                                     class="swatch"
                                     :style="{ backgroundColor: color }"
-                                    :aria-label="`Aplicar cor ${color}`"
+                                    :aria-label="`Apply color ${color}`"
                                     @click="applyNodeFill(color)"
                                   ></button>
                                 </div>
                               </div>
                               <div class="swatch-group">
-                                <p class="swatch-group-label">Paleta</p>
+                                <p class="swatch-group-label">Palette</p>
                                 <div class="swatch-grid">
                                   <button
                                     v-for="color in nodeFillPalette"
@@ -167,7 +167,7 @@
                                     type="button"
                                     class="swatch"
                                     :style="{ backgroundColor: color }"
-                                    :aria-label="`Aplicar cor ${color}`"
+                                    :aria-label="`Apply color ${color}`"
                                     @click="applyNodeFill(color)"
                                   ></button>
                                 </div>
@@ -179,7 +179,7 @@
                                   @input="applyNodeFill($event.target.value, { commit: false })"
                                   @change="applyNodeFill($event.target.value, { forceCommit: true })"
                                 >
-                                <button type="button" @click="addCustomColor('fill')">Adicionar à paleta</button>
+                                <button type="button" @click="addCustomColor('fill')">Add to palette</button>
                               </div>
                             </div>
                           </div>
@@ -190,7 +190,7 @@
                               class="toolbar-action"
                               :class="{ active: nodeToolbarState.activePopover === 'stroke' }"
                               @click.stop="toggleNodePopover('stroke')"
-                              aria-label="Cor da borda"
+                              aria-label="Border color"
                             >
                               <span class="toolbar-icon" aria-hidden="true">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -202,7 +202,7 @@
                             </button>
                             <div v-if="nodeToolbarState.activePopover === 'stroke'" class="selection-popover">
                               <div v-if="recentColorPalette.length" class="swatch-group">
-                                <p class="swatch-group-label">Recentes</p>
+                                <p class="swatch-group-label">Recent</p>
                                 <div class="swatch-grid">
                                   <button
                                     v-for="color in recentColorPalette"
@@ -210,13 +210,13 @@
                                     type="button"
                                     class="swatch"
                                     :style="{ backgroundColor: color }"
-                                    :aria-label="`Aplicar borda ${color}`"
+                                    :aria-label="`Apply border color ${color}`"
                                     @click="applyNodeBorder(color)"
                                   ></button>
                                 </div>
                               </div>
                               <div class="swatch-group">
-                                <p class="swatch-group-label">Paleta</p>
+                                <p class="swatch-group-label">Palette</p>
                                 <div class="swatch-grid">
                                   <button
                                     v-for="color in nodeStrokePalette"
@@ -224,7 +224,7 @@
                                     type="button"
                                     class="swatch"
                                     :style="{ backgroundColor: color }"
-                                    :aria-label="`Aplicar borda ${color}`"
+                                    :aria-label="`Apply border color ${color}`"
                                     @click="applyNodeBorder(color)"
                                   ></button>
                                 </div>
@@ -236,7 +236,7 @@
                                   @input="applyNodeBorder($event.target.value, { commit: false })"
                                   @change="applyNodeBorder($event.target.value, { forceCommit: true })"
                                 >
-                                <button type="button" @click="addCustomColor('stroke')">Adicionar à paleta</button>
+                                <button type="button" @click="addCustomColor('stroke')">Add to palette</button>
                               </div>
                             </div>
                           </div>
@@ -247,7 +247,7 @@
                               class="toolbar-action"
                               :class="{ active: nodeToolbarState.activePopover === 'borderWidth' }"
                               @click.stop="toggleNodePopover('borderWidth')"
-                              aria-label="Espessura da borda"
+                              aria-label="Border width"
                             >
                               <span class="toolbar-icon" aria-hidden="true">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round">
@@ -259,7 +259,7 @@
                             </button>
                             <div v-if="nodeToolbarState.activePopover === 'borderWidth'" class="selection-popover selection-popover--wide">
                               <div class="slider-control">
-                                <span>Espessura: {{ Number(selectedNode.borderWidth ?? 3).toFixed(1) }} px</span>
+                                <span>Thickness: {{ Number(selectedNode.borderWidth ?? 3).toFixed(1) }} px</span>
                                 <input
                                   type="range"
                                   min="1"
@@ -279,7 +279,7 @@
                               class="toolbar-action"
                               :class="{ active: nodeToolbarState.activePopover === 'cornerRadius' }"
                               @click.stop="toggleNodePopover('cornerRadius')"
-                              aria-label="Arredondamento das bordas"
+                              aria-label="Corner radius"
                             >
                               <span class="toolbar-icon" aria-hidden="true">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -290,7 +290,7 @@
                             </button>
                             <div v-if="nodeToolbarState.activePopover === 'cornerRadius'" class="selection-popover selection-popover--wide">
                               <div class="slider-control">
-                                <span>Raio: {{ Math.round(Number(selectedNode.cornerRadius ?? 16)) }} px</span>
+                                <span>Radius: {{ Math.round(Number(selectedNode.cornerRadius ?? 16)) }} px</span>
                                 <input
                                   type="range"
                                   min="0"
@@ -310,7 +310,7 @@
                               class="toolbar-action"
                               :class="{ active: nodeToolbarState.activePopover === 'fontSize' }"
                               @click.stop="toggleNodePopover('fontSize')"
-                              aria-label="Tamanho da fonte"
+                              aria-label="Font size"
                             >
                               <span class="toolbar-icon" aria-hidden="true">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -342,7 +342,7 @@
                               class="toolbar-action"
                               :class="{ active: nodeToolbarState.activePopover === 'shape' }"
                               @click.stop="toggleNodePopover('shape')"
-                              aria-label="Formato do nó"
+                              aria-label="Node shape"
                             >
                               <span class="toolbar-icon" aria-hidden="true">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -391,7 +391,7 @@
                           </div>
 
                           <div class="toolbar-item" @mouseenter="setNodeToolbarHover('copy')" @mouseleave="setNodeToolbarHover(null)">
-                            <button type="button" class="toolbar-action" @click="copySelectedFormatting" aria-label="Copiar formatação">
+                            <button type="button" class="toolbar-action" @click="copySelectedFormatting" aria-label="Copy formatting">
                               <span class="toolbar-icon" aria-hidden="true">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                                   <rect x="9" y="9" width="10" height="10" rx="2" />
@@ -408,7 +408,7 @@
                               :class="{ disabled: !canPasteFormatting }"
                               :disabled="!canPasteFormatting"
                               @click="pasteSelectedFormatting"
-                              aria-label="Colar formatação"
+                              aria-label="Paste formatting"
                             >
                               <span class="toolbar-icon" aria-hidden="true">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -422,7 +422,7 @@
                           </div>
 
                           <div class="toolbar-item" @mouseenter="setNodeToolbarHover('remove')" @mouseleave="setNodeToolbarHover(null)">
-                            <button type="button" class="toolbar-action danger" @click="removeSelected" aria-label="Remover nó">
+                            <button type="button" class="toolbar-action danger" @click="removeSelected" aria-label="Remove node">
                               <span class="toolbar-icon" aria-hidden="true">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                                   <path d="M6 7h12" />
@@ -443,7 +443,7 @@
                         ref="edgeToolbarRef"
                         class="selection-toolbar edge-toolbar"
                         role="toolbar"
-                        aria-label="Opções da aresta selecionada"
+                        aria-label="Selected edge options"
                         :style="edgeToolbarStyle"
                       >
                         <div class="selection-toolbar-row">
@@ -453,7 +453,7 @@
                               class="toolbar-action"
                               :class="{ active: edgeToolbarState.activePopover === 'color' }"
                               @click.stop="toggleEdgePopover('color')"
-                              aria-label="Cor da aresta"
+                              aria-label="Edge color"
                             >
                               <span class="toolbar-icon" aria-hidden="true">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -464,7 +464,7 @@
                             </button>
                             <div v-if="edgeToolbarState.activePopover === 'color'" class="selection-popover">
                               <div v-if="recentColorPalette.length" class="swatch-group">
-                                <p class="swatch-group-label">Recentes</p>
+                                <p class="swatch-group-label">Recent</p>
                                 <div class="swatch-grid">
                                   <button
                                     v-for="color in recentColorPalette"
@@ -472,13 +472,13 @@
                                     type="button"
                                     class="swatch"
                                     :style="{ backgroundColor: color }"
-                                    :aria-label="`Aplicar cor ${color}`"
+                                    :aria-label="`Apply color ${color}`"
                                     @click="applyEdgeColor(color)"
                                   ></button>
                                 </div>
                               </div>
                               <div class="swatch-group">
-                                <p class="swatch-group-label">Paleta</p>
+                                <p class="swatch-group-label">Palette</p>
                                 <div class="swatch-grid">
                                   <button
                                     v-for="color in nodeStrokePalette"
@@ -486,7 +486,7 @@
                                     type="button"
                                     class="swatch"
                                     :style="{ backgroundColor: color }"
-                                    :aria-label="`Aplicar cor ${color}`"
+                                    :aria-label="`Apply color ${color}`"
                                     @click="applyEdgeColor(color)"
                                   ></button>
                                 </div>
@@ -498,7 +498,7 @@
                                   @input="applyEdgeColor($event.target.value, { commit: false })"
                                   @change="applyEdgeColor($event.target.value, { forceCommit: true })"
                                 >
-                                <button type="button" @click="addCustomColor('stroke')">Adicionar à paleta</button>
+                                <button type="button" @click="addCustomColor('stroke')">Add to palette</button>
                               </div>
                             </div>
                           </div>
@@ -509,7 +509,7 @@
                               class="toolbar-action"
                               :class="{ active: edgeToolbarState.activePopover === 'style' }"
                               @click.stop="toggleEdgePopover('style')"
-                              aria-label="Estilo da linha"
+                              aria-label="Line style"
                             >
                               <span class="toolbar-icon" aria-hidden="true">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round">
@@ -520,7 +520,7 @@
                               </span>
                             </button>
                             <div v-if="edgeToolbarState.activePopover === 'style'" class="selection-popover selection-popover--compact">
-                              <button type="button" class="chip" :class="{ active: selectedEdge.style === 'solid' }" @click="setEdgeStyle('solid')">Sólida</button>
+                              <button type="button" class="chip" :class="{ active: selectedEdge.style === 'solid' }" @click="setEdgeStyle('solid')">Solid</button>
                               <button type="button" class="chip" :class="{ active: selectedEdge.style === 'dashed' }" @click="setEdgeStyle('dashed')">Tracejada</button>
                               <button type="button" class="chip" :class="{ active: selectedEdge.style === 'dotted' }" @click="setEdgeStyle('dotted')">Pontilhada</button>
                             </div>
@@ -532,7 +532,7 @@
                               class="toolbar-action"
                               :class="{ active: edgeToolbarState.activePopover === 'direction' }"
                               @click.stop="toggleEdgePopover('direction')"
-                              aria-label="Direção da aresta"
+                              aria-label="Edge direction"
                             >
                               <span class="toolbar-icon" aria-hidden="true">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -548,7 +548,7 @@
                                 <button type="button" class="chip" :class="{ active: selectedEdge.direction === '<->' }" @click="setEdgeDirection('<->')">&lt;-&gt;</button>
                                 <button type="button" class="chip" :class="{ active: selectedEdge.direction === '-' }" @click="setEdgeDirection('-')">-</button>
                               </div>
-                              <button type="button" class="toolbar-link" @click="flipEdgeDirection">Inverter direção</button>
+                              <button type="button" class="toolbar-link" @click="flipEdgeDirection">Flip direction</button>
                             </div>
                           </div>
 
@@ -558,7 +558,7 @@
                               class="toolbar-action"
                               :class="{ active: edgeToolbarState.activePopover === 'thickness' }"
                               @click.stop="toggleEdgePopover('thickness')"
-                              aria-label="Espessura da aresta"
+                              aria-label="Edge thickness"
                             >
                               <span class="toolbar-icon" aria-hidden="true">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round">
@@ -572,8 +572,8 @@
                                 <span>
                                   {{
                                     selectedEdge.thickness
-                                      ? 'Personalizada: ' + Number(selectedEdge.thickness).toFixed(1) + ' px'
-                                      : 'Usando padrão: ' + edgeThicknessDisplay
+                                      ? 'Custom: ' + Number(selectedEdge.thickness).toFixed(1) + ' px'
+                                      : 'Using default: ' + edgeThicknessDisplay
                                   }}
                                 </span>
                                 <input
@@ -586,14 +586,14 @@
                                   @change="updateSelectedEdgeThickness($event.target.value, { forceCommit: true })"
                                 >
                                 <button type="button" class="chip" @click="clearEdgeThickness" :disabled="selectedEdge.thickness == null">
-                                  Usar padrão global
+                                  Use global default
                                 </button>
                               </div>
                             </div>
                           </div>
 
                             <div class="toolbar-item" @mouseenter="setEdgeToolbarHover('copy')" @mouseleave="setEdgeToolbarHover(null)">
-                              <button type="button" class="toolbar-action" @click="copySelectedFormatting" aria-label="Copiar formatação da aresta">
+                              <button type="button" class="toolbar-action" @click="copySelectedFormatting" aria-label="Copy edge formatting">
                                 <span class="toolbar-icon" aria-hidden="true">
                                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                                     <rect x="9" y="9" width="10" height="10" rx="2" />
@@ -610,7 +610,7 @@
                                 :class="{ disabled: !canPasteFormatting }"
                                 :disabled="!canPasteFormatting"
                                 @click="pasteSelectedFormatting"
-                                aria-label="Colar formatação na aresta"
+                                aria-label="Paste edge formatting"
                               >
                                 <span class="toolbar-icon" aria-hidden="true">
                                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -629,9 +629,9 @@
                                 class="toolbar-action"
                                 :class="{ active: edgeToolbarState.activePopover === 'alignment', disabled: !hasSelectedEdgeLabel }"
                                 :disabled="!hasSelectedEdgeLabel"
-                                :title="hasSelectedEdgeLabel ? 'Alinhamento do rótulo' : 'Adicione um rótulo na aresta para habilitar'"
+                                :title="hasSelectedEdgeLabel ? 'Label alignment' : 'Add an edge label to enable'"
                                 @click.stop="toggleEdgePopover('alignment')"
-                                aria-label="Alinhamento do rótulo"
+                                aria-label="Label alignment"
                               >
                                 <span class="toolbar-icon" aria-hidden="true">
                                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -644,14 +644,14 @@
                               </button>
                             <div v-if="edgeToolbarState.activePopover === 'alignment'" class="selection-popover selection-popover--compact">
                               <button type="button" class="chip" :class="{ active: selectedEdge.label?.alignment === 'auto' || !selectedEdge.label?.alignment }" @click="setEdgeLabelAlignment('auto')">Auto</button>
-                              <button type="button" class="chip" :class="{ active: selectedEdge.label?.alignment === 'left' }" @click="setEdgeLabelAlignment('left')">Esq.</button>
-                              <button type="button" class="chip" :class="{ active: selectedEdge.label?.alignment === 'center' }" @click="setEdgeLabelAlignment('center')">Centro</button>
-                              <button type="button" class="chip" :class="{ active: selectedEdge.label?.alignment === 'right' }" @click="setEdgeLabelAlignment('right')">Dir.</button>
+                              <button type="button" class="chip" :class="{ active: selectedEdge.label?.alignment === 'left' }" @click="setEdgeLabelAlignment('left')">Left</button>
+                              <button type="button" class="chip" :class="{ active: selectedEdge.label?.alignment === 'center' }" @click="setEdgeLabelAlignment('center')">Center</button>
+                              <button type="button" class="chip" :class="{ active: selectedEdge.label?.alignment === 'right' }" @click="setEdgeLabelAlignment('right')">Right</button>
                             </div>
                           </div>
 
                             <div class="toolbar-item" @mouseenter="setEdgeToolbarHover('remove')" @mouseleave="setEdgeToolbarHover(null)">
-                              <button type="button" class="toolbar-action danger" @click="removeSelected" aria-label="Remover aresta">
+                              <button type="button" class="toolbar-action danger" @click="removeSelected" aria-label="Remove edge">
                                 <span class="toolbar-icon" aria-hidden="true">
                                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M6 7h12" />
@@ -679,12 +679,12 @@
                         @wheel.prevent="onCanvasWheel"
                       ></canvas>
                       <div class="viewport-controls">
-                        <div class="zoom-group" role="group" aria-label="Controles de zoom">
+                        <div class="zoom-group" role="group" aria-label="Zoom controls">
                           <button type="button" @click="zoomOut">-</button>
                           <span>{{ zoomLevel }}%</span>
                           <button type="button" @click="zoomIn">+</button>
                         </div>
-                        <button type="button" class="viewport-button" @click="resetView" aria-label="Centralizar visão">
+                        <button type="button" class="viewport-button" @click="resetView" aria-label="Center view">
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="12" cy="12" r="5" />
                             <path d="M12 3v3" />
@@ -717,21 +717,21 @@
                           ></textarea>
                         </div>
                         <div class="inline-editor-actions">
-                          <button type="button" @mousedown.prevent @click="confirmInlineEditor">Salvar</button>
-                          <button type="button" @mousedown.prevent @click="closeInlineEditor">Cancelar</button>
+                          <button type="button" @mousedown.prevent @click="confirmInlineEditor">Save</button>
+                          <button type="button" @mousedown.prevent @click="closeInlineEditor">Cancel</button>
                         </div>
                       </div>
-                      <p class="canvas-hint">Clique no canvas para {{ currentHint }}</p>
+                      <p class="canvas-hint">Click the canvas to {{ currentHint }}</p>
                     </div>
                   </div>
                   <div class="command-bar-container">
-                    <div class="command-bar" role="toolbar" aria-label="Ferramentas do canvas">
+                    <div class="command-bar" role="toolbar" aria-label="Canvas tools">
                       <button
                         type="button"
                         class="command-button"
                         :class="{ active: mode === 'move' }"
                         @click="changeMode('move')"
-                        aria-label="Mover elementos"
+                        aria-label="Move elements"
                         aria-keyshortcuts="V"
                       >
                         <span class="command-icon" aria-hidden="true">
@@ -766,7 +766,7 @@
                         type="button"
                         class="command-button command-button--danger"
                         @click="removeFrame"
-                        aria-label="Remover frame"
+                        aria-label="Remove frame"
                       >
                         <span class="command-icon" aria-hidden="true">
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -777,7 +777,7 @@
                             <path d="M14 11v6" />
                           </svg>
                         </span>
-                        <span class="command-label">Remover frame</span>
+                        <span class="command-label">Remove frame</span>
                       </button>
                       <div
                         class="command-button command-button--forms"
@@ -789,7 +789,7 @@
                           class="command-button-main"
                           :aria-pressed="mode === 'forms' ? 'true' : 'false'"
                           @click="changeMode('forms')"
-                          aria-label="Modo Forms"
+                          aria-label="Forms mode"
                         >
                           <span class="command-icon" aria-hidden="true">
                             <svg v-if="activeShape?.id === 'rectangle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
@@ -821,7 +821,7 @@
                           class="command-button-chevron"
                           @click.stop="toggleFormsMenu"
                           :aria-expanded="showFormsMenu ? 'true' : 'false'"
-                          aria-label="Escolher forma"
+                          aria-label="Choose shape"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                             <path d="m8 10 4 4 4-4" />
@@ -912,15 +912,15 @@
                           role="menu"
                         >
                           <label class="command-field">
-                            <span>Posição padrão dos rótulos</span>
+                            <span>Default label position</span>
                             <select
                               :value="edgeLabelAlignment"
                               @change="onEdgeLabelAlignmentChange($event.target.value)"
                             >
-                              <option value="auto">Automático</option>
-                              <option value="left">Esquerda</option>
-                              <option value="center">Centralizado</option>
-                              <option value="right">Direita</option>
+                              <option value="auto">Automatic</option>
+                              <option value="left">Left</option>
+                              <option value="center">Centered</option>
+                              <option value="right">Right</option>
                             </select>
                           </label>
                         </div>
@@ -935,7 +935,7 @@
                           ref="edgeThicknessMenuButtonRef"
                           @click="toggleEdgeThicknessMenu"
                           :aria-expanded="showEdgeThicknessMenu ? 'true' : 'false'"
-                          aria-label="Espessura global"
+                          aria-label="Global thickness"
                         >
                           <span class="command-icon" aria-hidden="true">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -953,7 +953,7 @@
                           role="menu"
                         >
                           <div class="command-field">
-                            <span>Espessura global</span>
+                            <span>Global thickness</span>
                             <span class="command-value">{{ edgeThicknessDisplay }} px</span>
                           </div>
                           <input
@@ -977,27 +977,27 @@
                     role="menu"
                   >
                     <button type="button" @click="closeContextMenu(); copySelection()" :disabled="!canCopySelection">
-                      <span>Copiar</span>
+                      <span>Copy</span>
                       <span class="shortcut">Ctrl C</span>
                     </button>
                     <button type="button" @click="closeContextMenu(); pasteSelection()" :disabled="!canPasteClipboard">
-                      <span>Colar</span>
+                      <span>Paste</span>
                       <span class="shortcut">Ctrl V</span>
                     </button>
                     <button type="button" @click="closeContextMenu(); cutSelection()" :disabled="!canCutSelection">
-                      <span>Cortar</span>
+                      <span>Cut</span>
                       <span class="shortcut">Ctrl X</span>
                     </button>
                     <button type="button" @click="closeContextMenu(); duplicateSelection()" :disabled="!canDuplicateSelection">
-                      <span>Duplicar</span>
+                      <span>Duplicate</span>
                       <span class="shortcut">Ctrl D</span>
                     </button>
                     <button type="button" @click="closeContextMenu(); copySelectedFormatting()" :disabled="!canCopyFormatting">
-                      <span>Copiar estilo</span>
+                      <span>Copy style</span>
                       <span class="shortcut">Ctrl ⇧ C</span>
                     </button>
                     <button type="button" @click="closeContextMenu(); pasteSelectedFormatting()" :disabled="!canPasteFormatting">
-                      <span>Colar estilo</span>
+                      <span>Paste style</span>
                       <span class="shortcut">Ctrl ⇧ V</span>
                     </button>
                   </div>
@@ -1015,7 +1015,7 @@
                   :class="{ active: sidebarTab === 'inspect' }"
                   @click="setSidebarTab('inspect')"
                 >
-                  Inspecionar
+                  Inspect
                 </button>
                 <button
                   type="button"
@@ -1023,7 +1023,7 @@
                   :class="{ active: sidebarTab === 'code' }"
                   @click="setSidebarTab('code')"
                 >
-                  Código
+                  Code
                 </button>
                 <button
                   type="button"
@@ -1040,10 +1040,10 @@
                 class="sidebar-panel"
                 v-if="selected && selected.type === 'node'"
               >
-                <header><h2>Editar nó</h2></header>
+                <header><h2>Edit node</h2></header>
                 <div class="panel-content inspector-content">
                   <label class="inspector-field">
-                    <span>Rótulo do nó</span>
+                    <span>Node label</span>
                     <textarea
                       class="inspector-textarea"
                       rows="5"
@@ -1054,7 +1054,7 @@
                   </label>
                   <div class="inspector-grid">
                     <label class="inspector-field">
-                      <span>Cor de preenchimento</span>
+                      <span>Fill color</span>
                       <input
                         type="color"
                         :value="selected.item.color"
@@ -1063,7 +1063,7 @@
                       >
                     </label>
                     <label class="inspector-field">
-                      <span>Cor da borda</span>
+                      <span>Border color</span>
                       <input
                         type="color"
                         :value="selected.item.borderColor"
@@ -1074,7 +1074,7 @@
                   </div>
                   <div class="inspector-grid">
                     <label class="inspector-field">
-                      <span>Espessura da borda</span>
+                      <span>Border width</span>
                       <div class="inspector-slider">
                         <input
                           type="range"
@@ -1089,7 +1089,7 @@
                       </div>
                     </label>
                     <label class="inspector-field">
-                      <span>Arredondamento</span>
+                      <span>Corner radius</span>
                       <div class="inspector-slider">
                         <input
                           type="range"
@@ -1106,7 +1106,7 @@
                   </div>
                   <div class="inspector-grid">
                     <label class="inspector-field">
-                      <span>Formato</span>
+                      <span>Shape</span>
                       <select
                         class="form-field"
                         :value="selected.item.shape"
@@ -1118,7 +1118,7 @@
                       </select>
                     </label>
                     <label class="inspector-field">
-                      <span>Tamanho da fonte</span>
+                      <span>Font size</span>
                       <select
                         class="form-field"
                         :value="selected.item.fontSize"
@@ -1133,7 +1133,7 @@
                   <template v-if="selected.item.shape === 'cylinder'">
                     <div class="inspector-grid">
                       <label class="inspector-field">
-                        <span>Rotação da forma</span>
+                        <span>Shape rotation</span>
                         <div class="inspector-slider">
                           <input
                             type="range"
@@ -1148,7 +1148,7 @@
                         </div>
                       </label>
                       <label class="inspector-field">
-                        <span>Rotação da borda</span>
+                        <span>Border rotation</span>
                         <div class="inspector-slider">
                           <input
                             type="range"
@@ -1165,7 +1165,7 @@
                     </div>
                     <div class="inspector-grid">
                       <label class="inspector-field">
-                        <span>Altura mínima</span>
+                        <span>Minimum height</span>
                         <div class="inspector-slider">
                           <input
                             type="range"
@@ -1180,7 +1180,7 @@
                         </div>
                       </label>
                       <label class="inspector-field">
-                        <span>Largura mínima</span>
+                        <span>Minimum width</span>
                         <div class="inspector-slider">
                           <input
                             type="range"
@@ -1197,7 +1197,7 @@
                     </div>
                     <div class="inspector-grid">
                       <label class="inspector-field">
-                        <span>Aspecto</span>
+                        <span>Aspect ratio</span>
                         <div class="inspector-slider">
                           <input
                             type="range"
@@ -1275,16 +1275,16 @@
                     </div>
                   </template>
                   <div class="inspector-actions">
-                    <button type="button" class="btn btn-ghost" @click="copySelectedFormatting">Copiar formatação</button>
+                    <button type="button" class="btn btn-ghost" @click="copySelectedFormatting">Copy formatting</button>
                     <button
                       type="button"
                       class="btn btn-ghost"
                       :disabled="!canPasteFormatting"
                       @click="pasteSelectedFormatting"
                     >
-                      Colar formatação
+                      Paste formatting
                     </button>
-                    <button type="button" class="btn btn-ghost danger" @click="removeSelected">Remover nó</button>
+                    <button type="button" class="btn btn-ghost danger" @click="removeSelected">Remove node</button>
                   </div>
                 </div>
               </section>
@@ -1297,15 +1297,15 @@
                 <div class="panel-content inspector-content">
                   <div class="inspector-grid">
                     <label class="inspector-field">
-                      <span>Estilo da linha</span>
+                      <span>Line style</span>
                       <select class="form-field" v-model="selected.item.style" @change="onOptionChange">
-                        <option value="solid">Sólida</option>
-                        <option value="dashed">Tracejada</option>
-                        <option value="dotted">Pontilhada</option>
+                        <option value="solid">Solid</option>
+                        <option value="dashed">Dashed</option>
+                        <option value="dotted">Dotted</option>
                       </select>
                     </label>
                     <label class="inspector-field">
-                      <span>Direção</span>
+                      <span>Direction</span>
                       <select class="form-field" v-model="selected.item.direction" @change="onOptionChange">
                         <option value="->">-&gt;</option>
                         <option value="<->">&lt;-&gt;</option>
@@ -1315,17 +1315,17 @@
                   </div>
                   <div class="inspector-grid">
                     <label class="inspector-field">
-                      <span>Cor da linha</span>
+                      <span>Line color</span>
                       <input type="color" v-model="selected.item.color" @input="invalidateTikz" @change="commitHistory">
                     </label>
                     <label class="inspector-field">
-                      <span>Trajeto</span>
+                      <span>Path</span>
                       <select class="form-field" v-model="selected.item.shape" @change="onOptionChange">
-                        <option value="straight">Reta</option>
-                        <option value="90-vertical">90° (primeiro vertical)</option>
-                        <option value="90-horizontal">90° (primeiro horizontal)</option>
-                        <option value="curva-esquerda">Curva para a esquerda</option>
-                        <option value="curva-direita">Curva para a direita</option>
+                        <option value="straight">Straight</option>
+                        <option value="90-vertical">90° (vertical first)</option>
+                        <option value="90-horizontal">90° (horizontal first)</option>
+                        <option value="curva-esquerda">Curve left</option>
+                        <option value="curva-direita">Curve right</option>
                       </select>
                     </label>
                   </div>
@@ -1333,7 +1333,7 @@
                     class="inspector-field"
                     v-if="selected.item.shape === 'curva-esquerda' || selected.item.shape === 'curva-direita'"
                   >
-                    <span>Curvatura</span>
+                    <span>Curvature</span>
                     <div class="inspector-slider">
                       <input
                         type="range"
@@ -1347,7 +1347,7 @@
                     </div>
                   </label>
                   <label class="inspector-field">
-                    <span>Espessura da aresta</span>
+                    <span>Edge thickness</span>
                     <div class="inspector-slider">
                       <input
                         type="range"
@@ -1362,7 +1362,7 @@
                         {{
                           selected.item.thickness
                             ? Number(selected.item.thickness).toFixed(1) + ' px'
-                            : 'Padrão: ' + edgeThicknessDisplay
+                            : 'Default: ' + edgeThicknessDisplay
                         }}
                       </span>
                     </div>
@@ -1372,12 +1372,12 @@
                       @click="clearEdgeThickness"
                       :disabled="selected.item.thickness == null"
                     >
-                      Usar espessura padrão
+                      Use default thickness
                     </button>
                   </label>
                   <div class="inspector-grid" v-if="selected.item.label?.text">
                     <label class="inspector-field">
-                      <span>Cor do rótulo</span>
+                      <span>Label color</span>
                       <input
                         type="color"
                         :value="selected.item.label?.color || '#e2e8f0'"
@@ -1386,31 +1386,31 @@
                       >
                     </label>
                     <label class="inspector-field">
-                      <span>Alinhamento do rótulo</span>
+                      <span>Label alignment</span>
                       <select
                         class="form-field"
                         :value="selected.item.label?.alignment || 'auto'"
                         @change="setEdgeLabelAlignment($event.target.value)"
                       >
-                        <option value="auto">Automático</option>
-                        <option value="left">Esquerda</option>
-                        <option value="center">Centralizado</option>
-                        <option value="right">Direita</option>
+                        <option value="auto">Automatic</option>
+                        <option value="left">Left</option>
+                        <option value="center">Centered</option>
+                        <option value="right">Right</option>
                       </select>
                     </label>
                   </div>
                   <div class="inspector-actions">
-                    <button type="button" class="btn btn-ghost" @click="flipEdgeDirection">Inverter direção</button>
-                    <button type="button" class="btn btn-ghost" @click="copySelectedFormatting">Copiar formatação</button>
+                    <button type="button" class="btn btn-ghost" @click="flipEdgeDirection">Flip direction</button>
+                    <button type="button" class="btn btn-ghost" @click="copySelectedFormatting">Copy formatting</button>
                     <button
                       type="button"
                       class="btn btn-ghost"
                       :disabled="!canPasteFormatting"
                       @click="pasteSelectedFormatting"
                     >
-                      Colar formatação
+                      Paste formatting
                     </button>
-                    <button type="button" class="btn btn-ghost danger" @click="removeSelected">Remover aresta</button>
+                    <button type="button" class="btn btn-ghost danger" @click="removeSelected">Remove edge</button>
                   </div>
                 </div>
               </section>
@@ -1418,19 +1418,19 @@
                 class="sidebar-panel"
                 v-else-if="selected && selected.type === 'line'"
               >
-                <header><h2>Editar linha</h2></header>
+                <header><h2>Edit line</h2></header>
                 <div class="panel-content inspector-content">
                   <div class="inspector-grid">
                     <label class="inspector-field">
-                      <span>Estilo da linha</span>
+                      <span>Line style</span>
                       <select class="form-field" v-model="selected.item.style" @change="onOptionChange">
-                        <option value="solid">Sólida</option>
-                        <option value="dashed">Tracejada</option>
-                        <option value="dotted">Pontilhada</option>
+                        <option value="solid">Solid</option>
+                        <option value="dashed">Dashed</option>
+                        <option value="dotted">Dotted</option>
                       </select>
                     </label>
                     <label class="inspector-field">
-                      <span>Cor da linha</span>
+                      <span>Line color</span>
                       <input
                         type="color"
                         :value="selected.item.color"
@@ -1440,7 +1440,7 @@
                     </label>
                   </div>
                   <label class="inspector-field">
-                    <span>Espessura da linha</span>
+                    <span>Line thickness</span>
                     <div class="inspector-slider">
                       <input
                         type="range"
@@ -1455,7 +1455,7 @@
                         {{
                           selected.item.thickness
                             ? Number(selected.item.thickness).toFixed(1) + ' px'
-                            : 'Padrão: ' + edgeThicknessDisplay
+                            : 'Default: ' + edgeThicknessDisplay
                         }}
                       </span>
                     </div>
@@ -1465,42 +1465,42 @@
                       @click="clearLineThickness"
                       :disabled="selected.item.thickness == null"
                     >
-                      Usar espessura padrão
+                      Use default thickness
                     </button>
                   </label>
                   <div class="inspector-actions">
-                    <button type="button" class="btn btn-ghost" @click="copySelectedFormatting">Copiar formatação</button>
+                    <button type="button" class="btn btn-ghost" @click="copySelectedFormatting">Copy formatting</button>
                     <button
                       type="button"
                       class="btn btn-ghost"
                       :disabled="!canPasteFormatting"
                       @click="pasteSelectedFormatting"
                     >
-                      Colar formatação
+                      Paste formatting
                     </button>
-                    <button type="button" class="btn btn-ghost danger" @click="removeSelected">Remover linha</button>
+                    <button type="button" class="btn btn-ghost danger" @click="removeSelected">Remove line</button>
                   </div>
                 </div>
               </section>
 
               <section class="sidebar-panel" v-else>
-                <header><h2>Nenhum elemento selecionado</h2></header>
-                <div class="empty-state">Selecione um nó, uma linha ou uma aresta para ver suas propriedades.</div>
+                <header><h2>No element selected</h2></header>
+                <div class="empty-state">Select a node, line, or edge to view its properties.</div>
               </section>
             </div>
 
             <div class="sidebar-body" v-else-if="sidebarTab === 'code'">
               <div class="sidebar-panel space-y-4">
-                <header><h2>Código TikZ</h2></header>
+                <header><h2>TikZ code</h2></header>
                 <div class="code-panel-toggle space-y-2">
                   <p class="text-sm text-slate-400">
-                    Ajuste a atualização automática do código pelo menu <strong>Configurações</strong> na barra lateral esquerda.
+                    Adjust the automatic code refresh through the <strong>Settings</strong> menu in the left sidebar.
                   </p>
                   <p v-if="tikzUpdatePending" class="code-panel-toggle-hint">
-                    Há alterações não refletidas no código. Reative a atualização automática para gerar novamente.
+                    There are changes not reflected in the code. Turn auto refresh back on to regenerate it.
                   </p>
                 </div>
-                <textarea readonly :value="tikzCode" aria-label="Código gerado" class="code-view"></textarea>
+                <textarea readonly :value="tikzCode" aria-label="Generated code" class="code-view"></textarea>
               </div>
             </div>
 
@@ -1508,9 +1508,9 @@
               <div class="sidebar-panel">
                 <header class="preview-header">
                   <div>
-                    <h2>Pré-visualização</h2>
+                    <h2>Preview</h2>
                     <p v-if="isPreviewDirty && tikzCode" class="preview-dirty-hint">
-                      Há alterações não renderizadas. Clique em <strong>Renderizar</strong> para atualizar.
+                      There are pending changes. Click <strong>Render</strong> to update.
                     </p>
                   </div>
                   <div class="preview-header-actions">
@@ -1520,7 +1520,7 @@
                         class="btn btn-icon"
                         @click="zoomPreviewOut"
                         :disabled="!hasPreviewContent"
-                        aria-label="Reduzir zoom da pré-visualização"
+                        aria-label="Zoom out preview"
                       >
                         −
                       </button>
@@ -1530,7 +1530,7 @@
                         class="btn btn-icon"
                         @click="zoomPreviewIn"
                         :disabled="!hasPreviewContent"
-                        aria-label="Aumentar zoom da pré-visualização"
+                        aria-label="Zoom in preview"
                       >
                         +
                       </button>
@@ -1563,7 +1563,7 @@
                           :style="previewStageContentStyle"
                         >
                           <iframe
-                            title="Pré-visualização da figura"
+                            title="Figure preview"
                             :srcdoc="preview.srcdoc"
                             sandbox="allow-scripts"
                             loading="lazy"
@@ -1572,7 +1572,7 @@
                       </div>
                     </div>
                     <div v-else class="preview-placeholder">
-                      O diagrama renderizado aparecerá aqui após clicar em <strong>Renderizar</strong>.
+                      The rendered diagram will appear here after you click <strong>Render</strong>.
                     </div>
                     <div
                       v-if="isPreviewLoading"
@@ -1583,7 +1583,7 @@
                       <div class="preview-loading-bar">
                         <span class="preview-loading-bar-fill"></span>
                       </div>
-                      <p class="preview-loading-message">Renderizando pré-visualização…</p>
+                      <p class="preview-loading-message">Rendering preview…</p>
                     </div>
                   </div>
                   <div class="preview-actions">
@@ -1593,7 +1593,7 @@
                       role="status"
                       aria-live="polite"
                     >
-                      Renderizando pré-visualização…
+                      Rendering preview…
                     </span>
                     <button
                       type="button"
@@ -1601,13 +1601,13 @@
                       @click="renderPreview"
                       :disabled="!tikzCode || !isPreviewDirty || isPreviewLoading"
                     >
-                      {{ isPreviewLoading ? 'Renderizando…' : 'Renderizar' }}
+                      {{ isPreviewLoading ? 'Rendering…' : 'Render' }}
                     </button>
                   </div>
                   <button
                     type="button"
                     class="preview-resize-handle"
-                    aria-label="Arraste ou use as setas para ajustar a altura da pré-visualização"
+                    aria-label="Drag or use arrows to adjust the preview height"
                     @pointerdown="startPreviewResize"
                     @keydown.up.prevent="adjustPreviewHeightBy(-24)"
                     @keydown.down.prevent="adjustPreviewHeightBy(24)"
@@ -1645,22 +1645,22 @@
         class="settings-modal-backdrop"
         role="dialog"
         aria-modal="true"
-        aria-label="Configurações do editor"
+        aria-label="Editor settings"
         @click.self="closeSettingsDialog"
       >
         <section class="settings-modal">
           <header class="settings-modal-header">
             <div>
-              <h2>Configurações</h2>
-              <p>Gerencie preferências globais do TikZ Editor.</p>
+              <h2>Settings</h2>
+              <p>Manage global preferences for the TikZ Editor.</p>
             </div>
-            <button type="button" class="btn btn-icon" @click="closeSettingsDialog" aria-label="Fechar configurações">✕</button>
+            <button type="button" class="btn btn-icon" @click="closeSettingsDialog" aria-label="Close settings">✕</button>
           </header>
           <div class="settings-modal-body">
             <div class="settings-item">
               <div>
-                <p class="settings-item-title">Atualizar TikZ automaticamente</p>
-                <p class="settings-item-subtitle">Gera o código conforme você edita o diagrama.</p>
+                <p class="settings-item-title">Update TikZ automatically</p>
+                <p class="settings-item-subtitle">Generate code as you edit the diagram.</p>
               </div>
               <button
                 type="button"
@@ -1670,7 +1670,7 @@
                 @click="toggleAutoUpdateTikz"
                 :class="autoUpdateTikz ? 'settings-switch--active' : ''"
               >
-                <span class="sr-only">Alternar atualização automática do TikZ</span>
+                <span class="sr-only">Toggle TikZ auto-update</span>
                 <span
                   aria-hidden="true"
                   class="settings-switch-thumb"
@@ -1680,23 +1680,23 @@
             </div>
             <div class="settings-item">
               <div>
-                <p class="settings-item-title">Tema do editor</p>
-                <p class="settings-item-subtitle">Escolha entre modo claro ou escuro.</p>
+                <p class="settings-item-title">Editor theme</p>
+                <p class="settings-item-subtitle">Choose between light or dark mode.</p>
               </div>
-              <div class="settings-segmented" role="group" aria-label="Alternar tema">
+              <div class="settings-segmented" role="group" aria-label="Toggle theme">
                 <button
                   type="button"
                   :class="{ active: currentTheme === 'dark' }"
                   @click="setTheme('dark')"
                 >
-                  Escuro
+                  Dark
                 </button>
                 <button
                   type="button"
                   :class="{ active: currentTheme === 'light' }"
                   @click="setTheme('light')"
                 >
-                  Claro
+                  Light
                 </button>
               </div>
             </div>
@@ -1712,13 +1712,13 @@
         role="presentation"
         @click.self="closeTemplateBrowser"
       >
-        <section class="template-browser" role="dialog" aria-modal="true" aria-label="Galeria de templates">
+        <section class="template-browser" role="dialog" aria-modal="true" aria-label="Template gallery">
           <header class="template-browser-header">
             <div>
               <h2>Templates</h2>
-              <p>Carregue um modelo pronto como ponto de partida para o seu diagrama.</p>
+              <p>Load a ready-made template as a starting point for your diagram.</p>
             </div>
-            <button type="button" class="btn btn-icon" @click="closeTemplateBrowser" aria-label="Fechar templates">✕</button>
+            <button type="button" class="btn btn-icon" @click="closeTemplateBrowser" aria-label="Close templates">✕</button>
           </header>
           <div class="template-browser-list">
             <article v-for="template in templates" :key="template.id" class="template-browser-card">
@@ -1727,7 +1727,7 @@
                 <p>{{ template.description }}</p>
               </div>
               <button type="button" class="btn btn-primary" @click="applyTemplate(template.id)">
-                Carregar
+                Load
               </button>
             </article>
           </div>
@@ -1741,27 +1741,27 @@
         class="matrix-import-backdrop"
         role="dialog"
         aria-modal="true"
-        aria-label="Fornecer dados da matriz"
+        aria-label="Provide matrix data"
         @click.self="closeMatrixPrompt"
       >
         <section class="matrix-import-modal matrix-import-modal--prompt">
           <header class="matrix-import-header">
             <div>
-              <h2>Importar matriz</h2>
-              <p>Cole os dados da matriz ou selecione um arquivo TXT/CSV.</p>
+              <h2>Import matrix</h2>
+              <p>Paste the matrix data or select a TXT/CSV file.</p>
             </div>
             <button
               type="button"
               class="btn btn-icon"
               @click="closeMatrixPrompt"
-              aria-label="Cancelar importação da matriz"
+              aria-label="Cancel matrix import"
             >
               ✕
             </button>
           </header>
           <div class="matrix-import-body matrix-import-body--prompt">
             <label class="matrix-import-label" for="matrix-import-textarea">
-              Cole os valores da matriz abaixo. Use vírgula, ponto e vírgula ou espaço para separar os valores.
+              Paste the matrix values below. Use commas, semicolons, or spaces to separate them.
             </label>
             <textarea
               id="matrix-import-textarea"
@@ -1774,20 +1774,20 @@
             <p v-if="matrixPrompt.error" class="matrix-import-error" role="alert">{{ matrixPrompt.error }}</p>
             <div class="matrix-import-upload">
               <button type="button" class="btn btn-ghost" @click="triggerMatrixFileSelection">
-                Escolher arquivo TXT ou CSV
+                Choose TXT or CSV file
               </button>
-              <p>ou cole o conteúdo diretamente no campo acima.</p>
+              <p>or paste the contents directly into the field above.</p>
             </div>
           </div>
           <footer class="matrix-import-footer">
-            <button type="button" class="btn btn-ghost" @click="closeMatrixPrompt">Cancelar</button>
+            <button type="button" class="btn btn-ghost" @click="closeMatrixPrompt">Cancel</button>
             <button
               type="button"
               class="btn btn-primary"
               @click="confirmMatrixPrompt"
               :disabled="!canSubmitMatrixPrompt"
             >
-              Continuar
+              Continue
             </button>
           </footer>
         </section>
@@ -1800,30 +1800,30 @@
         class="matrix-import-backdrop"
         role="dialog"
         aria-modal="true"
-        aria-label="Mapear cores para a matriz importada"
+        aria-label="Map colors to the imported matrix"
         @click.self="cancelMatrixImport"
       >
         <section class="matrix-import-modal">
           <header class="matrix-import-header">
             <div>
-              <h2>Importar matriz</h2>
+              <h2>Import matrix</h2>
               <p>
-                Defina as cores para cada valor detectado em
-                <strong>{{ matrixImport.fileName || 'arquivo selecionado' }}</strong>.
+                Set colors for each detected value in
+                <strong>{{ matrixImport.fileName || 'selected file' }}</strong>.
               </p>
             </div>
             <button
               type="button"
               class="btn btn-icon"
               @click="cancelMatrixImport"
-              aria-label="Cancelar importação da matriz"
+              aria-label="Cancel matrix import"
             >
               ✕
             </button>
           </header>
           <div class="matrix-import-body">
             <p v-if="!matrixImport.values.length" class="matrix-import-empty">
-              Nenhum valor foi encontrado na matriz selecionada.
+              No values were found in the selected matrix.
             </p>
             <div v-else class="matrix-import-grid" role="list">
               <div
@@ -1834,7 +1834,7 @@
               >
                 <span class="matrix-import-value" aria-hidden="true">{{ value }}</span>
                 <label class="sr-only" :for="`matrix-color-${value}`">
-                  Cor para o valor {{ value }}
+                  Color for value {{ value }}
                 </label>
                 <input
                   :id="`matrix-color-${value}`"
@@ -1846,14 +1846,14 @@
             </div>
           </div>
           <footer class="matrix-import-footer">
-            <button type="button" class="btn btn-ghost" @click="cancelMatrixImport">Cancelar</button>
+            <button type="button" class="btn btn-ghost" @click="cancelMatrixImport">Cancel</button>
             <button
               type="button"
               class="btn btn-primary"
               @click="confirmMatrixImport"
               :disabled="!canConfirmMatrixImport"
             >
-              Confirmar
+              Confirm
             </button>
           </footer>
         </section>
