@@ -32,6 +32,16 @@ const SUPPORTED_NODE_KEYS = new Set([
   'font',
   'fontFamily',
   'fontWeight',
+  'rotate',
+  'shapeBorderRotate',
+  'minimumHeight',
+  'minimumWidth',
+  'aspect',
+  'innerXsep',
+  'innerYsep',
+  'cylinderUsesCustomFill',
+  'cylinderEndFill',
+  'cylinderBodyFill',
 ]);
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -182,9 +192,13 @@ export function normalizeNodeParameters(node = {}) {
   const shadowValue = hasOwn(node, 'shadow') ? coerceBoolean(node.shadow) : null;
   const size = normalizeSize(node.size);
 
+  const usesCustomCylinderFill =
+    shape === 'cylinder' && node.cylinderUsesCustomFill !== false;
+  const resolvedFill = usesCustomCylinderFill ? null : fill;
+
   return {
     shape,
-    fill,
+    fill: resolvedFill,
     draw,
     lineWidth,
     cornerRadius,

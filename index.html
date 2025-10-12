@@ -368,6 +368,12 @@
                                     <svg v-else-if="shape.id === 'circle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                                       <circle cx="12" cy="12" r="6.5" />
                                     </svg>
+                                    <svg v-else-if="shape.id === 'cylinder'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                                      <ellipse cx="12" cy="7" rx="5.5" ry="2.5" />
+                                      <path d="M6.5 7v8.5" />
+                                      <path d="M17.5 7v8.5" />
+                                      <path d="M6.5 15.5c0 1.4 2.46 2.5 5.5 2.5s5.5-1.1 5.5-2.5" />
+                                    </svg>
                                     <svg v-else-if="shape.id === 'decision'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                                       <path stroke-linecap="round" stroke-linejoin="round" d="M12 4l7 8-7 8-7-8 7-8z" />
                                     </svg>
@@ -792,6 +798,12 @@
                             <svg v-else-if="activeShape?.id === 'circle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                               <circle cx="12" cy="12" r="6.5" />
                             </svg>
+                            <svg v-else-if="activeShape?.id === 'cylinder'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                              <ellipse cx="12" cy="7" rx="5.5" ry="2.5" />
+                              <path d="M6.5 7v8.5" />
+                              <path d="M17.5 7v8.5" />
+                              <path d="M6.5 15.5c0 1.4 2.46 2.5 5.5 2.5s5.5-1.1 5.5-2.5" />
+                            </svg>
                             <svg v-else-if="activeShape?.id === 'decision'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                               <path stroke-linecap="round" stroke-linejoin="round" d="M12 4l7 8-7 8-7-8 7-8z" />
                             </svg>
@@ -834,6 +846,12 @@
                               </svg>
                               <svg v-else-if="shape.id === 'circle'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                                 <circle cx="12" cy="12" r="6.5" />
+                              </svg>
+                              <svg v-else-if="shape.id === 'cylinder'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                                <ellipse cx="12" cy="7" rx="5.5" ry="2.5" />
+                                <path d="M6.5 7v8.5" />
+                                <path d="M17.5 7v8.5" />
+                                <path d="M6.5 15.5c0 1.4 2.46 2.5 5.5 2.5s5.5-1.1 5.5-2.5" />
                               </svg>
                               <svg v-else-if="shape.id === 'decision'" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 4l7 8-7 8-7-8 7-8z" />
@@ -1112,6 +1130,132 @@
                       </select>
                     </label>
                   </div>
+                  <template v-if="selected.item.shape === 'cylinder'">
+                    <div class="inspector-grid">
+                      <label class="inspector-field">
+                        <span>Rotação da forma</span>
+                        <div class="inspector-slider">
+                          <input
+                            type="range"
+                            min="-180"
+                            max="180"
+                            step="1"
+                            :value="Number(selected.item.rotate ?? 0)"
+                            @input="updateCylinderRotate($event.target.value, { commit: false })"
+                            @change="updateCylinderRotate($event.target.value, { forceCommit: true })"
+                          >
+                          <span>{{ Number(selected.item.rotate ?? 0).toFixed(0) }}°</span>
+                        </div>
+                      </label>
+                      <label class="inspector-field">
+                        <span>Rotação da borda</span>
+                        <div class="inspector-slider">
+                          <input
+                            type="range"
+                            min="-180"
+                            max="180"
+                            step="1"
+                            :value="Number(selected.item.shapeBorderRotate ?? 0)"
+                            @input="updateCylinderBorderRotate($event.target.value, { commit: false })"
+                            @change="updateCylinderBorderRotate($event.target.value, { forceCommit: true })"
+                          >
+                          <span>{{ Number(selected.item.shapeBorderRotate ?? 0).toFixed(0) }}°</span>
+                        </div>
+                      </label>
+                    </div>
+                    <div class="inspector-grid">
+                      <label class="inspector-field">
+                        <span>Altura mínima</span>
+                        <input
+                          class="form-field"
+                          type="text"
+                          :value="selected.item.minimumHeight || ''"
+                          placeholder="Ex.: 2cm"
+                          @input="updateCylinderDimension('minimumHeight', $event.target.value, { commit: false })"
+                          @change="updateCylinderDimension('minimumHeight', $event.target.value, { forceCommit: true })"
+                        >
+                      </label>
+                      <label class="inspector-field">
+                        <span>Largura mínima</span>
+                        <input
+                          class="form-field"
+                          type="text"
+                          :value="selected.item.minimumWidth || ''"
+                          placeholder="Ex.: 1.6cm"
+                          @input="updateCylinderDimension('minimumWidth', $event.target.value, { commit: false })"
+                          @change="updateCylinderDimension('minimumWidth', $event.target.value, { forceCommit: true })"
+                        >
+                      </label>
+                    </div>
+                    <div class="inspector-grid">
+                      <label class="inspector-field">
+                        <span>Aspecto</span>
+                        <input
+                          class="form-field"
+                          type="number"
+                          min="0.1"
+                          max="3"
+                          step="0.05"
+                          :value="Number(selected.item.aspect ?? 0.6)"
+                          @input="updateCylinderAspect($event.target.value, { commit: false })"
+                          @change="updateCylinderAspect($event.target.value, { forceCommit: true })"
+                        >
+                      </label>
+                      <label class="inspector-field">
+                        <span>inner xsep</span>
+                        <input
+                          class="form-field"
+                          type="text"
+                          :value="selected.item.innerXsep || ''"
+                          placeholder="Ex.: 4pt"
+                          @input="updateCylinderDimension('innerXsep', $event.target.value, { commit: false })"
+                          @change="updateCylinderDimension('innerXsep', $event.target.value, { forceCommit: true })"
+                        >
+                      </label>
+                      <label class="inspector-field">
+                        <span>inner ysep</span>
+                        <input
+                          class="form-field"
+                          type="text"
+                          :value="selected.item.innerYsep || ''"
+                          placeholder="Ex.: 6pt"
+                          @input="updateCylinderDimension('innerYsep', $event.target.value, { commit: false })"
+                          @change="updateCylinderDimension('innerYsep', $event.target.value, { forceCommit: true })"
+                        >
+                      </label>
+                    </div>
+                    <div class="inspector-grid">
+                      <label class="inspector-field">
+                        <span>Preenchimento customizado</span>
+                        <select
+                          class="form-field"
+                          :value="selected.item.cylinderUsesCustomFill ? 'true' : 'false'"
+                          @change="updateCylinderCustomFill($event.target.value)"
+                        >
+                          <option value="true">Ativado</option>
+                          <option value="false">Desativado</option>
+                        </select>
+                      </label>
+                      <label class="inspector-field">
+                        <span>Cor do corpo</span>
+                        <input
+                          type="color"
+                          :value="selected.item.cylinderBodyFill || selected.item.color || '#f8fafc'"
+                          @input="updateCylinderColor('cylinderBodyFill', $event.target.value, { commit: false })"
+                          @change="updateCylinderColor('cylinderBodyFill', $event.target.value, { forceCommit: true })"
+                        >
+                      </label>
+                      <label class="inspector-field">
+                        <span>Cor da tampa</span>
+                        <input
+                          type="color"
+                          :value="selected.item.cylinderEndFill || selected.item.color || '#f8fafc'"
+                          @input="updateCylinderColor('cylinderEndFill', $event.target.value, { commit: false })"
+                          @change="updateCylinderColor('cylinderEndFill', $event.target.value, { forceCommit: true })"
+                        >
+                      </label>
+                    </div>
+                  </template>
                   <div class="inspector-actions">
                     <button type="button" class="btn btn-ghost" @click="copySelectedFormatting">Copiar formatação</button>
                     <button

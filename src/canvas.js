@@ -7,6 +7,7 @@ import {
   NODE_HEIGHT,
   getNodeDimensions,
   getNodeBounds as computeNodeBounds,
+  getCylinderMetrics,
 } from './utils/sceneMetrics.js';
 const CONNECTION_HANDLE_RADIUS = 8;
 const CONNECTION_HANDLE_HITBOX = CONNECTION_HANDLE_RADIUS * 1.75;
@@ -17,6 +18,71 @@ const FRAME_HIT_PADDING = 12;
 const CARDINAL_DIRECTIONS = ['north', 'east', 'south', 'west'];
 const RECTANGLE_CORNER_DIRECTIONS = ['northeast', 'southeast', 'southwest', 'northwest'];
 const getNodeBounds = computeNodeBounds;
+
+const RADIAN_FACTOR = Math.PI / 180;
+const toRadians = degrees => degrees * RADIAN_FACTOR;
+
+function rotatePointAround(point, center, radians) {
+  if (!radians) {
+    return { x: point.x, y: point.y };
+  }
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  return {
+    x: center.x + dx * cos - dy * sin,
+    y: center.y + dx * sin + dy * cos,
+  };
+}
+
+function parseHexColor(color) {
+  if (typeof color !== 'string') {
+    return null;
+  }
+  const normalized = color.trim().replace(/^#/, '');
+  if (!/^[0-9a-fA-F]{3}$|^[0-9a-fA-F]{6}$/.test(normalized)) {
+    return null;
+  }
+  const hex = normalized.length === 3
+    ? normalized
+        .split('')
+        .map(char => char + char)
+        .join('')
+    : normalized;
+  return {
+    r: parseInt(hex.slice(0, 2), 16),
+    g: parseInt(hex.slice(2, 4), 16),
+    b: parseInt(hex.slice(4, 6), 16),
+  };
+}
+
+function rgbToHex({ r, g, b }) {
+  const clamp = value => Math.max(0, Math.min(255, Math.round(value)));
+  return `#${clamp(r).toString(16).padStart(2, '0')}${clamp(g)
+    .toString(16)
+    .padStart(2, '0')}${clamp(b).toString(16).padStart(2, '0')}`;
+}
+
+function mixColors(sourceColor, targetColor, ratio) {
+  const source = parseHexColor(sourceColor);
+  const target = parseHexColor(targetColor);
+  if (!source || !target) {
+    return sourceColor;
+  }
+  const mix = {
+    r: source.r + (target.r - source.r) * ratio,
+    g: source.g + (target.g - source.g) * ratio,
+    b: source.b + (target.b - source.b) * ratio,
+  };
+  return rgbToHex(mix);
+}
+
+const lightenColor = (color, amount = 0.2) => mixColors(color, '#ffffff', amount);
+const darkenColor = (color, amount = 0.2) => mixColors(color, '#0f172a', amount);
+
+const resolveColor = (candidate, fallback) =>
+  typeof candidate === 'string' && candidate.trim() ? candidate.trim() : fallback;
 
 const THEME_PALETTE = {
   dark: {
@@ -54,26 +120,44 @@ function getMatrixGridSize(grid) {
 
 function getAnchorPoint(node, direction) {
   const { halfWidth, halfHeight } = getNodeDimensions(node);
+  let point;
   switch (direction) {
     case 'north':
-      return { x: node.x, y: node.y - halfHeight };
+      point = { x: node.x, y: node.y - halfHeight };
+      break;
     case 'south':
-      return { x: node.x, y: node.y + halfHeight };
+      point = { x: node.x, y: node.y + halfHeight };
+      break;
     case 'east':
-      return { x: node.x + halfWidth, y: node.y };
+      point = { x: node.x + halfWidth, y: node.y };
+      break;
     case 'west':
-      return { x: node.x - halfWidth, y: node.y };
+      point = { x: node.x - halfWidth, y: node.y };
+      break;
     case 'northeast':
-      return { x: node.x + halfWidth, y: node.y - halfHeight };
+      point = { x: node.x + halfWidth, y: node.y - halfHeight };
+      break;
     case 'southeast':
-      return { x: node.x + halfWidth, y: node.y + halfHeight };
+      point = { x: node.x + halfWidth, y: node.y + halfHeight };
+      break;
     case 'southwest':
-      return { x: node.x - halfWidth, y: node.y + halfHeight };
+      point = { x: node.x - halfWidth, y: node.y + halfHeight };
+      break;
     case 'northwest':
-      return { x: node.x - halfWidth, y: node.y - halfHeight };
+      point = { x: node.x - halfWidth, y: node.y - halfHeight };
+      break;
     default:
-      return { x: node.x, y: node.y };
+      point = { x: node.x, y: node.y };
   }
+  const rotateDeg = Number(node.rotate);
+  const borderRotateDeg = Number(node.shapeBorderRotate);
+  const totalDeg =
+    (Number.isFinite(rotateDeg) ? rotateDeg : 0) +
+    (Number.isFinite(borderRotateDeg) ? borderRotateDeg : 0);
+  if (!totalDeg) {
+    return point;
+  }
+  return rotatePointAround(point, node, toRadians(totalDeg));
 }
 
 function getAnchorPoints(node) {
@@ -314,6 +398,96 @@ export function createCanvasRenderer(canvas, state) {
     ctx.restore();
   }
 
+  function drawCylinderNode(node, strokeColor) {
+    const metrics = getCylinderMetrics(node);
+    const { rx, ry, bodyHeight, paddingX, paddingY } = metrics;
+    const scale = getCameraScale();
+    const topCenterY = node.y - bodyHeight / 2;
+    const bottomCenterY = node.y + bodyHeight / 2;
+
+    const usesCustomFill = node.cylinderUsesCustomFill !== false;
+    const fallbackFill = node.color || '#e2e8f0';
+    const bodyColor = resolveColor(
+      usesCustomFill ? node.cylinderBodyFill : null,
+      fallbackFill
+    );
+    const endColor = resolveColor(
+      usesCustomFill ? node.cylinderEndFill : null,
+      fallbackFill
+    );
+
+    const bodyPath = new Path2D();
+    bodyPath.moveTo(node.x - rx, topCenterY);
+    bodyPath.lineTo(node.x - rx, bottomCenterY);
+    bodyPath.ellipse(node.x, bottomCenterY, rx, ry, 0, Math.PI, 0);
+    bodyPath.lineTo(node.x + rx, topCenterY);
+    bodyPath.ellipse(node.x, topCenterY, rx, ry, 0, Math.PI, 0, true);
+    bodyPath.closePath();
+
+    const topEllipse = new Path2D();
+    topEllipse.ellipse(node.x, topCenterY, rx, ry, 0, 0, Math.PI * 2);
+
+    const highlight = lightenColor(bodyColor, 0.28);
+    const shadow = darkenColor(bodyColor, 0.18);
+    const bodyGradient = ctx.createLinearGradient(
+      node.x,
+      topCenterY - ry,
+      node.x,
+      bottomCenterY + ry
+    );
+    bodyGradient.addColorStop(0, highlight);
+    bodyGradient.addColorStop(0.6, bodyColor);
+    bodyGradient.addColorStop(1, shadow);
+
+    ctx.fillStyle = bodyGradient;
+    ctx.fill(bodyPath);
+
+    const topHighlight = lightenColor(endColor, 0.18);
+    ctx.fillStyle = topHighlight;
+    ctx.fill(topEllipse);
+
+    const outerStrokeWidth = ctx.lineWidth;
+
+    ctx.strokeStyle = strokeColor;
+    ctx.setLineDash([]);
+    ctx.stroke(bodyPath);
+
+    ctx.save();
+    ctx.lineWidth = Math.max(outerStrokeWidth * 0.85, 0.75 / scale);
+    ctx.strokeStyle = withAlpha(strokeColor, 0.78);
+    ctx.beginPath();
+    ctx.ellipse(node.x, topCenterY, rx, ry, 0, 0, Math.PI);
+    ctx.stroke();
+    ctx.restore();
+
+    const rimRx = Math.max(4, Math.min(rx - Math.max(4, paddingX * 0.6), rx * 0.88));
+    const rimRy = Math.max(3, Math.min(ry - Math.max(3, paddingY * 0.6), ry * 0.85));
+    if (rimRx > 6 && rimRy > 4) {
+      const innerEllipse = new Path2D();
+      innerEllipse.ellipse(node.x, topCenterY, rimRx, rimRy, 0, 0, Math.PI * 2);
+      ctx.save();
+      ctx.fillStyle = lightenColor(endColor, 0.35);
+      ctx.globalAlpha = 0.85;
+      ctx.fill(innerEllipse);
+      ctx.restore();
+
+      ctx.save();
+      ctx.lineWidth = Math.max(outerStrokeWidth * 0.6, 0.65 / scale);
+      ctx.strokeStyle = withAlpha(strokeColor, 0.55);
+      ctx.stroke(innerEllipse);
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.lineWidth = Math.max(outerStrokeWidth * 0.8, 0.7 / scale);
+    ctx.setLineDash([6 / scale, 6 / scale]);
+    ctx.strokeStyle = withAlpha(strokeColor, 0.4);
+    ctx.beginPath();
+    ctx.ellipse(node.x, bottomCenterY, rx, ry, 0, 0, Math.PI);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawNodeBase(node) {
     ctx.save();
     const scale = getCameraScale();
@@ -341,11 +515,36 @@ export function createCanvasRenderer(canvas, state) {
     })();
     ctx.lineWidth = Math.max(width, 1) / scale;
     ctx.strokeStyle = strokeColor;
-    ctx.fillStyle = node.color || '#e2e8f0';
 
-    const path = getNodePath(node);
-    ctx.fill(path);
-    ctx.stroke(path);
+    const rotateDeg = Number(node.rotate);
+    const rotateRad = Number.isFinite(rotateDeg) ? toRadians(rotateDeg) : 0;
+    if (rotateRad !== 0) {
+      ctx.translate(node.x, node.y);
+      ctx.rotate(rotateRad);
+      ctx.translate(-node.x, -node.y);
+    }
+
+    const borderRotateDeg = Number(node.shapeBorderRotate);
+    const borderRotateRad = Number.isFinite(borderRotateDeg)
+      ? toRadians(borderRotateDeg)
+      : 0;
+
+    ctx.save();
+    if (borderRotateRad !== 0) {
+      ctx.translate(node.x, node.y);
+      ctx.rotate(borderRotateRad);
+      ctx.translate(-node.x, -node.y);
+    }
+
+    if (node.shape === 'cylinder') {
+      drawCylinderNode(node, strokeColor);
+    } else {
+      ctx.fillStyle = node.color || '#e2e8f0';
+      const path = getNodePath(node);
+      ctx.fill(path);
+      ctx.stroke(path);
+    }
+    ctx.restore();
 
     const fontSize = Number(node.fontSize) || 16;
     const lines = (node.label || 'Nó').toString().split(/\n/);
@@ -357,8 +556,15 @@ export function createCanvasRenderer(canvas, state) {
     ctx.textBaseline = 'middle';
 
     const { halfWidth, halfHeight } = getNodeDimensions(node);
-    const maxTextWidth = Math.max(halfWidth * 2 - fontSize, 24);
-    const availableHeight = Math.max(halfHeight * 2 - fontSize * 0.5, lineHeight);
+    let maxTextWidth = Math.max(halfWidth * 2 - fontSize, 24);
+    let availableHeight = Math.max(halfHeight * 2 - fontSize * 0.5, lineHeight);
+    if (node.shape === 'cylinder') {
+      const metrics = getCylinderMetrics(node);
+      const textWidth = Math.max(metrics.contentWidth - fontSize * 0.4, 16);
+      const textHeight = Math.max(metrics.contentHeight, lineHeight);
+      maxTextWidth = Math.max(textWidth, 24);
+      availableHeight = Math.max(textHeight, lineHeight);
+    }
     const maxLines = Math.max(1, Math.floor(availableHeight / lineHeight));
     const ellipsis = '…';
 
@@ -652,6 +858,22 @@ export function createCanvasRenderer(canvas, state) {
         path.lineTo(node.x + horizontal, node.y + halfHeight);
         path.lineTo(node.x - horizontal, node.y + halfHeight);
         path.lineTo(node.x - halfWidth, node.y);
+        path.closePath();
+        break;
+      }
+      case 'cylinder': {
+        const rx = halfWidth;
+        const aspectRaw = Number(node.aspect);
+        const aspect = Number.isFinite(aspectRaw) && aspectRaw > 0 ? aspectRaw : 0.6;
+        const maxRy = halfHeight * 0.9;
+        const ry = Math.min(maxRy, Math.max(halfHeight * 0.2, rx * aspect));
+        const topCenterY = node.y - halfHeight + ry;
+        const bottomCenterY = node.y + halfHeight - ry;
+        path.moveTo(node.x - rx, topCenterY);
+        path.lineTo(node.x - rx, bottomCenterY);
+        path.ellipse(node.x, bottomCenterY, rx, ry, 0, Math.PI, 0);
+        path.lineTo(node.x + rx, topCenterY);
+        path.ellipse(node.x, topCenterY, rx, ry, 0, 0, Math.PI, true);
         path.closePath();
         break;
       }

@@ -21,6 +21,58 @@ const defaultNode = shape => ({
   cornerRadius: 16,
 });
 
+function applyShapeDefaults(node) {
+  if (!node || node.shape !== 'cylinder') {
+    return;
+  }
+
+  const coerceNumber = (value, fallback) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : fallback;
+  };
+
+  const ensureTrimmed = (value, fallback = '') => {
+    if (typeof value === 'string') {
+      return value.trim();
+    }
+    return fallback;
+  };
+
+  node.rotate = coerceNumber(node.rotate, 0);
+  node.shapeBorderRotate = coerceNumber(node.shapeBorderRotate, 0);
+
+  const rawAspect = Number(node.aspect);
+  node.aspect = Number.isFinite(rawAspect) && rawAspect > 0 ? rawAspect : 0.35;
+
+  const minimumHeight = typeof node.minimumHeight === 'string' ? node.minimumHeight.trim() : '';
+  node.minimumHeight = minimumHeight || '1.8cm';
+  const minimumWidth = typeof node.minimumWidth === 'string' ? node.minimumWidth.trim() : '';
+  node.minimumWidth = minimumWidth || '1.6cm';
+  node.innerXsep = ensureTrimmed(node.innerXsep);
+  node.innerYsep = ensureTrimmed(node.innerYsep);
+
+  if (node.cylinderUsesCustomFill == null) {
+    node.cylinderUsesCustomFill = true;
+  } else if (typeof node.cylinderUsesCustomFill === 'string') {
+    node.cylinderUsesCustomFill = node.cylinderUsesCustomFill.trim().toLowerCase() === 'true';
+  } else {
+    node.cylinderUsesCustomFill = Boolean(node.cylinderUsesCustomFill);
+  }
+
+  const fallbackFill =
+    (typeof node.color === 'string' && node.color.trim()) || '#f8fafc';
+  if (!(typeof node.cylinderBodyFill === 'string' && node.cylinderBodyFill.trim())) {
+    node.cylinderBodyFill = fallbackFill;
+  } else {
+    node.cylinderBodyFill = node.cylinderBodyFill.trim();
+  }
+  if (!(typeof node.cylinderEndFill === 'string' && node.cylinderEndFill.trim())) {
+    node.cylinderEndFill = fallbackFill;
+  } else {
+    node.cylinderEndFill = node.cylinderEndFill.trim();
+  }
+}
+
 let nodeSequence = 1;
 let edgeSequence = 1;
 let textSequence = 1;
@@ -138,6 +190,7 @@ function normalizeNode(node = {}) {
   normalized.cornerRadius = Number.isFinite(cornerRadiusValue) && cornerRadiusValue >= 0
     ? Math.min(64, cornerRadiusValue)
     : 16;
+  applyShapeDefaults(normalized);
   return normalized;
 }
 
@@ -226,6 +279,7 @@ createApp({
     const availableShapes = [
       { id: 'rectangle', label: 'Retângulo', shortcut: 'R' },
       { id: 'circle', label: 'Círculo', shortcut: 'C' },
+      { id: 'cylinder', label: 'Cilindro', shortcut: 'Y' },
       { id: 'decision', label: 'Nó de decisão', shortcut: 'D' },
       { id: 'diamond', label: 'Losango', shortcut: 'G' },
       { id: 'triangle', label: 'Triângulo', shortcut: 'T' },
@@ -1229,6 +1283,25 @@ createApp({
       registerRecentColor(normalized);
       let changed = false;
       nodes.forEach(node => {
+        const previousFill = normalizeHex(node.color) || node.color;
+        if (node.shape === 'cylinder' && node.cylinderUsesCustomFill !== false) {
+          const bodyValue = normalizeHex(node.cylinderBodyFill) || node.cylinderBodyFill;
+          if (
+            (!node.cylinderBodyFill || bodyValue === previousFill) &&
+            node.cylinderBodyFill !== normalized
+          ) {
+            node.cylinderBodyFill = normalized;
+            changed = true;
+          }
+          const endValue = normalizeHex(node.cylinderEndFill) || node.cylinderEndFill;
+          if (
+            (!node.cylinderEndFill || endValue === previousFill) &&
+            node.cylinderEndFill !== normalized
+          ) {
+            node.cylinderEndFill = normalized;
+            changed = true;
+          }
+        }
         if (node.color !== normalized) {
           node.color = normalized;
           changed = true;
@@ -1237,6 +1310,7 @@ createApp({
       if ((options.commit !== false && changed) || options.forceCommit) {
         pushHistory();
       }
+      renderer.value?.draw();
     }
 
     function applyNodeBorder(color, options = {}) {
@@ -1359,12 +1433,87 @@ createApp({
       nodes.forEach(node => {
         if (node.shape !== shape) {
           node.shape = shape;
+          applyShapeDefaults(node);
           changed = true;
         }
       });
       if (changed) {
         pushHistory();
       }
+    }
+
+    function updateCylinderProperty(key, value, options = {}) {
+      const nodes = selectedNodes.value.filter(node => node.shape === 'cylinder');
+      if (!nodes.length) {
+        return;
+      }
+      let changed = false;
+      nodes.forEach(node => {
+        if (node[key] !== value) {
+          node[key] = value;
+          changed = true;
+        }
+      });
+      if (!changed) {
+        return;
+      }
+      if (options.reapplyDefaults) {
+        nodes.forEach(applyShapeDefaults);
+      }
+      if ((options.commit !== false && changed) || options.forceCommit) {
+        pushHistory();
+      }
+      renderer.value?.draw();
+    }
+
+    function updateCylinderRotate(value, options = {}) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) {
+        return;
+      }
+      const clamped = Math.min(360, Math.max(-360, numeric));
+      updateCylinderProperty('rotate', Number(clamped.toFixed(1)), options);
+    }
+
+    function updateCylinderBorderRotate(value, options = {}) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) {
+        return;
+      }
+      const clamped = Math.min(360, Math.max(-360, numeric));
+      updateCylinderProperty('shapeBorderRotate', Number(clamped.toFixed(1)), options);
+    }
+
+    function updateCylinderAspect(value, options = {}) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric) || numeric <= 0) {
+        return;
+      }
+      const clamped = Math.min(3, Math.max(0.1, numeric));
+      updateCylinderProperty('aspect', Number(clamped.toFixed(2)), options);
+    }
+
+    function updateCylinderDimension(key, value, options = {}) {
+      const normalized =
+        typeof value === 'string' ? value.trim() : value == null ? '' : String(value);
+      updateCylinderProperty(key, normalized, options);
+    }
+
+    function updateCylinderCustomFill(value) {
+      const normalized = value === false || value === 'false' ? false : true;
+      updateCylinderProperty('cylinderUsesCustomFill', normalized, {
+        forceCommit: true,
+        reapplyDefaults: normalized,
+      });
+    }
+
+    function updateCylinderColor(key, color, options = {}) {
+      const normalized =
+        normalizeHex(color) || (typeof color === 'string' ? color.trim() : null);
+      if (!normalized) {
+        return;
+      }
+      updateCylinderProperty(key, normalized, options);
     }
 
     function copySelectedFormatting() {
@@ -5038,6 +5187,12 @@ createApp({
       updateNodeCornerRadius,
       setNodeFontSize,
       setNodeShape,
+      updateCylinderRotate,
+      updateCylinderBorderRotate,
+      updateCylinderAspect,
+      updateCylinderDimension,
+      updateCylinderCustomFill,
+      updateCylinderColor,
       copySelectedFormatting,
       pasteSelectedFormatting,
       selectedEdge,
