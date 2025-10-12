@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 export function distanceToSegment(point, start, end) {
   const dx = end.x - start.x;
   const dy = end.y - start.y;

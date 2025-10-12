@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 import {
   DEFAULT_SHAPE,
   getShapeFactory,

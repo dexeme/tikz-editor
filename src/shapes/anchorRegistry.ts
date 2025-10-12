@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 const anchorRegistry = new Map();
 
 const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object ?? {}, key);

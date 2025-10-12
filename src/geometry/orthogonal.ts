@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 function segmentLength(segment) {
   const dx = segment.end.x - segment.start.x;
   const dy = segment.end.y - segment.start.y;

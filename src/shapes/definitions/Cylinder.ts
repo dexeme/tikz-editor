@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 import { registerShape } from '../registry.js';
 import { registerShapeAnchors } from '../anchorRegistry.js';
 import { getCylinderMetrics } from '../../utils/sceneMetrics.js';

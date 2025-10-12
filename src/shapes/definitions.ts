@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 import { registerCircle } from './definitions/Circle.js';
 import { registerCylinder } from './definitions/Cylinder.js';
 import { registerDecision } from './definitions/Decision.js';

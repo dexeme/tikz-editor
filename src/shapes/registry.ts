@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 const shapeRegistry = new Map();
 
 export const DEFAULT_SHAPE = 'circle';

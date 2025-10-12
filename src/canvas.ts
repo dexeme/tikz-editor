@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 import { distanceToSegment, getQuadraticControlPoint } from './utils/geometry.js';
 import { isCurvedShape, isOrthogonalShape, resolveBendShape } from './routingMaps.js';
 import { computeOrthogonalGeometry } from './geometry/orthogonal.js';

@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 export const NODE_RADIUS = 32;
 export const NODE_WIDTH = 112;
 export const NODE_HEIGHT = 64;

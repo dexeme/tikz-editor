@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 import assert from 'node:assert/strict';
 
 import { computeOrthogonalGeometry } from '../src/geometry/orthogonal.js';

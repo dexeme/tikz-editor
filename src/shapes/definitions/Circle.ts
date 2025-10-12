@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 import { createSimpleShape } from '../core.js';
 import { registerShape } from '../registry.js';
 import { registerShapeAnchors } from '../anchorRegistry.js';

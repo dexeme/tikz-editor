@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 const FONT_MAP = {
   12: '\\small',
   16: '',

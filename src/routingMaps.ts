@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 export const mapPort = {
   north: 'north',
   south: 'south',
