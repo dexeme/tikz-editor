@@ -1,12 +1,33 @@
-import { mapPort, resolveBendShape, resolveOrthogonalTikz, isCurvedShape } from './routingMaps.js';
-import { isNodeInsideFrame } from './utils/sceneMetrics.js';
 import {
   buildStyleOptions,
   createShapeOptions,
   normalizeNodeParameters,
 } from './shapes/index.js';
+import { mapPort, resolveBendShape, resolveOrthogonalTikz, isCurvedShape } from './routingMaps.js';
+import { isNodeInsideFrame } from './utils/sceneMetrics.js';
+import { findShapeAnchor } from './shapes/anchorRegistry.js';
+import { registerBuiltInShapes } from './shapes/definitions.js';
+
+registerBuiltInShapes();
 
 const SCALE = 0.05;
+
+const resolveTikzAnchor = (node, anchorId) => {
+  if (!anchorId) {
+    return null;
+  }
+  if (node && typeof node.shape === 'string') {
+    try {
+      const definition = findShapeAnchor(node.shape, anchorId);
+      if (definition) {
+        return definition.tikz;
+      }
+    } catch (error) {
+      // ignore lookup errors and fall back to defaults
+    }
+  }
+  return mapPort[anchorId] || anchorId;
+};
 
 const isPointInsideFrame = (point, frame) => {
   if (!frame) return true;
@@ -279,12 +300,14 @@ export function generateTikzDocument(
     const labelSegment = hasLabelText
       ? ` node[${labelOptions.join(', ')}]{${edge.label.text}}`
       : '';
+    const fromNode = nodeMap.get(fromNodeId);
+    const toNode = nodeMap.get(toNodeId);
     const fromAnchor = edge.fromAnchor || edge.source?.portId;
     const toAnchor = edge.toAnchor || edge.target?.portId;
-    const fromRef = fromAnchor
-      ? `${fromNodeId}.${mapPort[fromAnchor] || fromAnchor}`
-      : fromNodeId;
-    const toRef = toAnchor ? `${toNodeId}.${mapPort[toAnchor] || toAnchor}` : toNodeId;
+    const fromAnchorName = fromAnchor ? resolveTikzAnchor(fromNode, fromAnchor) : null;
+    const toAnchorName = toAnchor ? resolveTikzAnchor(toNode, toAnchor) : null;
+    const fromRef = fromAnchor ? `${fromNodeId}.${fromAnchorName}` : fromNodeId;
+    const toRef = toAnchor ? `${toNodeId}.${toAnchorName}` : toNodeId;
     body += `    \\draw[${styleParts.join(', ')}] (${fromRef}) ${path}${labelSegment} (${toRef});\n`;
   });
 

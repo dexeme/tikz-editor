@@ -9,14 +9,17 @@ import {
   getNodeBounds as computeNodeBounds,
   getCylinderMetrics,
 } from './utils/sceneMetrics.js';
+import { getShapeAnchors, findShapeAnchor } from './shapes/anchorRegistry.js';
+import { registerBuiltInShapes } from './shapes/definitions.js';
 const CONNECTION_HANDLE_RADIUS = 8;
 const CONNECTION_HANDLE_HITBOX = CONNECTION_HANDLE_RADIUS * 1.75;
 const GRID_SPACING = 64;
 const FRAME_HANDLE_SIZE = 16;
 const FRAME_HIT_PADDING = 12;
 
+registerBuiltInShapes();
+
 const CARDINAL_DIRECTIONS = ['north', 'east', 'south', 'west'];
-const RECTANGLE_CORNER_DIRECTIONS = ['northeast', 'southeast', 'southwest', 'northwest'];
 const getNodeBounds = computeNodeBounds;
 
 const RADIAN_FACTOR = Math.PI / 180;
@@ -118,36 +121,79 @@ function getMatrixGridSize(grid) {
   };
 }
 
-function getAnchorPoint(node, direction) {
+function resolveAnchorDefinition(node, direction) {
+  if (!node || typeof node.shape !== 'string') {
+    return null;
+  }
+  if (typeof direction !== 'string') {
+    return null;
+  }
+  try {
+    return findShapeAnchor(node.shape, direction);
+  } catch (error) {
+    return null;
+  }
+}
+
+function computeFallbackAnchorPoint(node, direction) {
+  if (!node) {
+    return { x: 0, y: 0 };
+  }
+  const normalized =
+    typeof direction === 'string' ? direction.trim().toLowerCase() : '';
   const { halfWidth, halfHeight } = getNodeDimensions(node);
-  let point;
-  switch (direction) {
+  switch (normalized) {
     case 'north':
-      point = { x: node.x, y: node.y - halfHeight };
-      break;
+    case 'n':
+      return { x: node.x, y: node.y - halfHeight };
     case 'south':
-      point = { x: node.x, y: node.y + halfHeight };
-      break;
+    case 's':
+      return { x: node.x, y: node.y + halfHeight };
     case 'east':
-      point = { x: node.x + halfWidth, y: node.y };
-      break;
+    case 'e':
+      return { x: node.x + halfWidth, y: node.y };
     case 'west':
-      point = { x: node.x - halfWidth, y: node.y };
-      break;
+    case 'w':
+      return { x: node.x - halfWidth, y: node.y };
     case 'northeast':
-      point = { x: node.x + halfWidth, y: node.y - halfHeight };
-      break;
+    case 'north east':
+      return { x: node.x + halfWidth, y: node.y - halfHeight };
     case 'southeast':
-      point = { x: node.x + halfWidth, y: node.y + halfHeight };
-      break;
+    case 'south east':
+      return { x: node.x + halfWidth, y: node.y + halfHeight };
     case 'southwest':
-      point = { x: node.x - halfWidth, y: node.y + halfHeight };
-      break;
+    case 'south west':
+      return { x: node.x - halfWidth, y: node.y + halfHeight };
     case 'northwest':
-      point = { x: node.x - halfWidth, y: node.y - halfHeight };
-      break;
+    case 'north west':
+      return { x: node.x - halfWidth, y: node.y - halfHeight };
     default:
-      point = { x: node.x, y: node.y };
+      return { x: node.x, y: node.y };
+  }
+}
+
+function getAnchorPoint(node, direction) {
+  if (!node) {
+    return { x: 0, y: 0 };
+  }
+  let basePoint = null;
+  const anchorDefinition = resolveAnchorDefinition(node, direction);
+  if (anchorDefinition && typeof anchorDefinition.getPoint === 'function') {
+    try {
+      const computed = anchorDefinition.getPoint(node);
+      if (
+        computed &&
+        Number.isFinite(computed.x) &&
+        Number.isFinite(computed.y)
+      ) {
+        basePoint = computed;
+      }
+    } catch (error) {
+      basePoint = null;
+    }
+  }
+  if (!basePoint) {
+    basePoint = computeFallbackAnchorPoint(node, direction);
   }
   const rotateDeg = Number(node.rotate);
   const borderRotateDeg = Number(node.shapeBorderRotate);
@@ -155,26 +201,37 @@ function getAnchorPoint(node, direction) {
     (Number.isFinite(rotateDeg) ? rotateDeg : 0) +
     (Number.isFinite(borderRotateDeg) ? borderRotateDeg : 0);
   if (!totalDeg) {
-    return point;
+    return basePoint;
   }
-  return rotatePointAround(point, node, toRadians(totalDeg));
+  return rotatePointAround(basePoint, node, toRadians(totalDeg));
 }
 
 function getAnchorPoints(node) {
-  const baseAnchors = CARDINAL_DIRECTIONS.map(direction => ({
+  if (!node) {
+    return [];
+  }
+  let definitions = [];
+  if (typeof node.shape === 'string') {
+    try {
+      definitions = getShapeAnchors(node.shape);
+    } catch (error) {
+      definitions = [];
+    }
+  }
+  if (definitions.length) {
+    return definitions.map(definition => ({
+      direction: definition.id,
+      tikz: definition.tikz,
+      isConnectable: definition.isConnectable,
+      point: getAnchorPoint(node, definition.id),
+    }));
+  }
+  return CARDINAL_DIRECTIONS.map(direction => ({
     direction,
+    tikz: direction,
+    isConnectable: true,
     point: getAnchorPoint(node, direction),
   }));
-
-  if (node.shape === 'rectangle') {
-    const cornerAnchors = RECTANGLE_CORNER_DIRECTIONS.map(direction => ({
-      direction,
-      point: getAnchorPoint(node, direction),
-    }));
-    return [...baseAnchors, ...cornerAnchors];
-  }
-
-  return baseAnchors;
 }
 const TEXT_BLOCK_MIN_WIDTH = 96;
 const TEXT_BLOCK_MIN_HEIGHT = 60;
@@ -624,8 +681,28 @@ export function createCanvasRenderer(canvas, state) {
     if (!shouldShow) return;
 
     const anchors = getAnchorPoints(node);
+    const renderAnchors = anchors.filter(anchor => {
+      if (anchor.isConnectable) return true;
+      if (
+        state.edgeDraft?.from?.nodeId === node.id &&
+        state.edgeDraft?.from?.anchor === anchor.direction
+      ) {
+        return true;
+      }
+      if (isTarget && targetInfo.anchor === anchor.direction) {
+        return true;
+      }
+      if (
+        state.edgeDraft?.counterpart &&
+        state.edgeDraft.counterpart.nodeId === node.id &&
+        state.edgeDraft.counterpart.anchor === anchor.direction
+      ) {
+        return true;
+      }
+      return false;
+    });
     ctx.save();
-    anchors.forEach(({ direction, point }) => {
+    renderAnchors.forEach(({ direction, point }) => {
       let fill = 'rgba(226, 232, 240, 0.95)';
       let stroke = 'rgba(100, 116, 139, 0.85)';
       if (state.edgeDraft?.from?.nodeId === node.id && state.edgeDraft?.from?.anchor === direction) {
@@ -1334,6 +1411,9 @@ export function createCanvasRenderer(canvas, state) {
       const node = state.nodes[index];
       const anchors = getAnchorPoints(node);
       for (const anchor of anchors) {
+        if (!anchor.isConnectable) {
+          continue;
+        }
         const distance = Math.hypot(anchor.point.x - x, anchor.point.y - y);
         if (distance <= hitbox) {
           return { node, anchor: anchor.direction };

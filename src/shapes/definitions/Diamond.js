@@ -1,21 +1,23 @@
-import { rounding } from '../core.js';
+import { createSimpleShape } from '../core.js';
 import { registerShape } from '../registry.js';
 import { registerShapeAnchors } from '../anchorRegistry.js';
 import { getNodeDimensions } from '../../utils/sceneMetrics.js';
 
 const ALIGN_CENTER = 'align=center';
-
 const toRadians = degrees => (degrees * Math.PI) / 180;
 
-const rectangleBorderPoint = angle => node => {
+const diamondMidpoint = (a, b) => ({
+  x: (a.x + b.x) / 2,
+  y: (a.y + b.y) / 2,
+});
+
+const diamondBorderPoint = angle => node => {
   const { halfWidth, halfHeight } = getNodeDimensions(node);
   const radians = toRadians(angle);
   const dx = Math.cos(radians);
   const dy = -Math.sin(radians);
-  const denom = Math.max(
-    Math.abs(dx) / (halfWidth || 1),
-    Math.abs(dy) / (halfHeight || 1)
-  );
+  const denom =
+    Math.abs(dx) / (halfWidth || 1) + Math.abs(dy) / (halfHeight || 1);
   const scale = denom === 0 ? 0 : 1 / denom;
   return {
     x: node.x + dx * scale,
@@ -23,16 +25,10 @@ const rectangleBorderPoint = angle => node => {
   };
 };
 
-const rectangleAnchors = [
+const diamondAnchors = [
   {
     id: 'center',
     tikz: 'center',
-    isConnectable: false,
-    getPoint: node => ({ x: node.x, y: node.y }),
-  },
-  {
-    id: 'shape center',
-    tikz: 'shape center',
     isConnectable: false,
     getPoint: node => ({ x: node.x, y: node.y }),
   },
@@ -95,33 +91,27 @@ const rectangleAnchors = [
     },
   },
   {
-    id: 'north west',
-    tikz: 'north west',
-    isConnectable: true,
-    aliases: ['northwest'],
-    getPoint: node => {
-      const { halfWidth, halfHeight } = getNodeDimensions(node);
-      return { x: node.x - halfWidth, y: node.y - halfHeight };
-    },
-  },
-  {
     id: 'north east',
     tikz: 'north east',
     isConnectable: true,
     aliases: ['northeast'],
     getPoint: node => {
       const { halfWidth, halfHeight } = getNodeDimensions(node);
-      return { x: node.x + halfWidth, y: node.y - halfHeight };
+      const north = { x: node.x, y: node.y - halfHeight };
+      const east = { x: node.x + halfWidth, y: node.y };
+      return diamondMidpoint(north, east);
     },
   },
   {
-    id: 'south west',
-    tikz: 'south west',
+    id: 'north west',
+    tikz: 'north west',
     isConnectable: true,
-    aliases: ['southwest'],
+    aliases: ['northwest'],
     getPoint: node => {
       const { halfWidth, halfHeight } = getNodeDimensions(node);
-      return { x: node.x - halfWidth, y: node.y + halfHeight };
+      const north = { x: node.x, y: node.y - halfHeight };
+      const west = { x: node.x - halfWidth, y: node.y };
+      return diamondMidpoint(north, west);
     },
   },
   {
@@ -131,74 +121,41 @@ const rectangleAnchors = [
     aliases: ['southeast'],
     getPoint: node => {
       const { halfWidth, halfHeight } = getNodeDimensions(node);
-      return { x: node.x + halfWidth, y: node.y + halfHeight };
+      const south = { x: node.x, y: node.y + halfHeight };
+      const east = { x: node.x + halfWidth, y: node.y };
+      return diamondMidpoint(south, east);
+    },
+  },
+  {
+    id: 'south west',
+    tikz: 'south west',
+    isConnectable: true,
+    aliases: ['southwest'],
+    getPoint: node => {
+      const { halfWidth, halfHeight } = getNodeDimensions(node);
+      const south = { x: node.x, y: node.y + halfHeight };
+      const west = { x: node.x - halfWidth, y: node.y };
+      return diamondMidpoint(south, west);
     },
   },
   {
     id: '130',
     tikz: '130',
     isConnectable: true,
-    getPoint: rectangleBorderPoint(130),
+    getPoint: diamondBorderPoint(130),
   },
   {
     id: '10',
     tikz: '10',
     isConnectable: true,
-    getPoint: rectangleBorderPoint(10),
-  },
-  {
-    id: 'mid west',
-    tikz: 'mid west',
-    isConnectable: true,
-    aliases: ['midwest'],
-    getPoint: node => {
-      const { halfWidth } = getNodeDimensions(node);
-      return { x: node.x - halfWidth, y: node.y };
-    },
-  },
-  {
-    id: 'base west',
-    tikz: 'base west',
-    isConnectable: true,
-    getPoint: node => {
-      const { halfWidth, halfHeight } = getNodeDimensions(node);
-      return { x: node.x - halfWidth, y: node.y + halfHeight };
-    },
-  },
-  {
-    id: 'mid east',
-    tikz: 'mid east',
-    isConnectable: true,
-    aliases: ['mideast'],
-    getPoint: node => {
-      const { halfWidth } = getNodeDimensions(node);
-      return { x: node.x + halfWidth, y: node.y };
-    },
-  },
-  {
-    id: 'base east',
-    tikz: 'base east',
-    isConnectable: true,
-    getPoint: node => {
-      const { halfWidth, halfHeight } = getNodeDimensions(node);
-      return { x: node.x + halfWidth, y: node.y + halfHeight };
-    },
+    getPoint: diamondBorderPoint(10),
   },
 ];
 
-export function registerRectangle() {
-  registerShape('rectangle', params => {
-    const radius = Number.isFinite(params?.cornerRadius) ? params.cornerRadius : 16;
-    return {
-      options: [
-        'rectangle',
-        `rounded corners=${rounding(Math.max(0, radius))}pt`,
-        'minimum width=2.4cm',
-        'minimum height=1.2cm',
-        ALIGN_CENTER,
-      ],
-    };
-  });
-
-  registerShapeAnchors('rectangle', rectangleAnchors);
+export function registerDiamond() {
+  registerShape(
+    'diamond',
+    createSimpleShape(['diamond', 'aspect=2', ALIGN_CENTER], ['shapes.geometric'])
+  );
+  registerShapeAnchors('diamond', diamondAnchors);
 }
