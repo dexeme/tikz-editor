@@ -1,21 +1,12 @@
 import { mapPort, resolveBendShape, resolveOrthogonalTikz, isCurvedShape } from './routingMaps.js';
 import { isNodeInsideFrame } from './utils/sceneMetrics.js';
-
-const FONT_MAP = {
-  12: '\\small',
-  16: '',
-  20: '\\large',
-};
+import {
+  buildStyleOptions,
+  createShapeOptions,
+  normalizeNodeParameters,
+} from './shapes/index.js';
 
 const SCALE = 0.05;
-
-const SHAPE_OPTIONS = {
-  circle: 'circle, align=center',
-  rectangle: 'rectangle, rounded corners=3pt, minimum width=2.4cm, minimum height=1.2cm, align=center',
-  diamond: 'diamond, aspect=2, align=center',
-  decision: 'regular polygon, regular polygon sides=6, minimum size=1.8cm, align=center',
-  triangle: 'regular polygon, regular polygon sides=3, minimum size=1.8cm, align=center',
-};
 
 const isPointInsideFrame = (point, frame) => {
   if (!frame) return true;
@@ -167,31 +158,40 @@ export function generateTikzDocument(
   let body = '\\begin{tikzpicture}[node distance=2cm, auto, >=stealth]\n';
 
   filteredNodes.forEach(node => {
-    const fillColorName = registerColor(node.color);
-    const strokeColorName = registerColor(node.borderColor);
+    const normalizedNode = normalizeNodeParameters(node);
+    const styleResult = buildStyleOptions(normalizedNode, { registerColor });
+    styleResult.libraries.forEach(lib => libraries.add(lib));
+
+    const shapeParameters = {
+      id: node.id,
+      label: normalizedNode.label,
+      fill: normalizedNode.fill,
+      draw: normalizedNode.draw,
+      lineWidth: normalizedNode.lineWidth,
+      fontSize: normalizedNode.fontSize,
+      cornerRadius: normalizedNode.cornerRadius,
+      opacity: normalizedNode.opacity,
+      shadow: normalizedNode.shadow,
+      size: normalizedNode.size,
+      flags: normalizedNode.flags,
+      raw: node,
+    };
+
+    const shapeResult = createShapeOptions(normalizedNode.shape, shapeParameters, {
+      registerColor,
+    });
+    shapeResult.libraries.forEach(lib => libraries.add(lib));
+
+    const optionSegments = [
+      ...styleResult.prefix,
+      ...shapeResult.options,
+      ...styleResult.suffix,
+    ].filter(Boolean);
+
     const x = (node.x * SCALE).toFixed(2);
     const y = (-node.y * SCALE).toFixed(2);
-    if (node.shape && ['diamond', 'decision', 'triangle'].includes(node.shape)) {
-      libraries.add('shapes.geometric');
-    }
-    let shapeOption = SHAPE_OPTIONS[node.shape] || SHAPE_OPTIONS.circle;
-    if (node.shape === 'rectangle') {
-      const radius = Math.max(0, Number(node.cornerRadius) || 16);
-      const roundedCorners = (radius * 0.1875).toFixed(2);
-      shapeOption = `rectangle, rounded corners=${roundedCorners}pt, minimum width=2.4cm, minimum height=1.2cm, align=center`;
-    }
-    const borderWidth = Number(node.borderWidth);
-    const lineWidthOption = Number.isFinite(borderWidth) && borderWidth > 0
-      ? `line width=${(borderWidth * 0.6).toFixed(2)}pt`
-      : null;
-    const options = [
-      strokeColorName ? `draw=${strokeColorName}` : 'draw',
-      shapeOption,
-      fillColorName ? `fill=${fillColorName}` : null,
-      lineWidthOption,
-      FONT_MAP[node.fontSize] ? `font=${FONT_MAP[node.fontSize]}` : null,
-    ].filter(Boolean).join(', ');
-    body += `    \\node[${options}] (${node.id}) at (${x},${y}) {${formatNodeLabel(node.label)}};\n`;
+
+    body += `    \\node[${optionSegments.join(', ')}] (${node.id}) at (${x},${y}) {${formatNodeLabel(normalizedNode.label)}};\n`;
   });
 
   if (filteredEdges.length || filteredLines.length) {
