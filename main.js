@@ -7,7 +7,7 @@ import {
   onMounted,
   onUnmounted,
   nextTick,
-} from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+} from 'https://unpkg.com/vue@3/dist/vue.esm-browser.prod.js';
 import { createCanvasRenderer, TEXT_BLOCK_CONSTRAINTS } from './src/canvas.js';
 import { generateTikzDocument } from './src/tikz.js';
 
@@ -1992,20 +1992,25 @@ createApp({
     const selected = computed(() => state.selected);
 
     const previewZoomLevel = computed(() => Math.max(1, Math.round(preview.scale * 100)));
-    const previewTransformStyle = computed(() => ({
-      transform: `translate(${preview.offsetX}px, ${preview.offsetY}px) scale(${preview.scale})`,
-      transformOrigin: '0 0',
-      willChange: 'transform',
-    }));
     const previewStageStyle = computed(() => {
       const width = Math.max(1, Number(preview.contentWidth) || 0);
       const height = Math.max(1, Number(preview.contentHeight) || 0);
       return {
-        ...previewTransformStyle.value,
+        left: `${preview.offsetX}px`,
+        top: `${preview.offsetY}px`,
         width: `${width}px`,
         height: `${height}px`,
+        transform: 'translate(0px, 0px) scale(1)',
+        transformOrigin: '0 0',
       };
     });
+    const previewStageContentStyle = computed(() => ({
+      width: '100%',
+      height: '100%',
+      transform: `scale(${preview.scale})`,
+      transformOrigin: '0 0',
+      willChange: 'transform',
+    }));
     const hasPreviewContent = computed(() => !!preview.srcdoc);
     const isPreviewDirty = computed(
       () => !!tikzCode.value && tikzCode.value !== lastRenderedTikz.value
@@ -2015,6 +2020,9 @@ createApp({
     let previewContentBounds = null;
     const PREVIEW_MIN_SCALE = 0.05;
     const PREVIEW_MAX_SCALE = 6;
+    const PREVIEW_PADDING_RATIO = 0.1;
+    const PREVIEW_PADDING_MIN = 32;
+    const PREVIEW_PADDING_MAX = 160;
 
     function clampPreviewScale(value) {
       if (!Number.isFinite(value) || value <= 0) {
@@ -2085,7 +2093,7 @@ createApp({
         '<title>TikZ Preview</title>',
         '<link rel="stylesheet" href="https://tikzjax.com/v1/fonts.css">',
         '<script src="https://tikzjax.com/v1/tikzjax.js"></script>',
-        '<style>body{margin:0;background:#ffffff;color:#0f172a;font-family:\'Inter\',system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;} .loading{color:#475569;font-size:0.9rem;}</style>',
+        '<style>html,body{margin:0;height:100%;overflow:hidden;background:#ffffff;color:#0f172a;font-family:\'Inter\',system-ui,sans-serif;}body{display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;}svg{max-width:100%;height:auto;} .loading{color:#475569;font-size:0.9rem;}</style>',
         '</head>',
         '<body>',
         '<div class="loading">Carregando pré-visualização…</div>',
@@ -2247,13 +2255,20 @@ createApp({
         return;
       }
       const width = Math.max(1, Number(bounds.width) || 0);
-      const height = Math.max(1, Number(bounds.height) || 0);
+      const rawHeight = Math.max(1, Number(bounds.height) || 0);
+      const baseSize = Math.max(width, rawHeight);
+      const padding = Math.max(
+        PREVIEW_PADDING_MIN,
+        Math.min(PREVIEW_PADDING_MAX, baseSize * PREVIEW_PADDING_RATIO)
+      );
+      const paddedWidth = width + padding * 2;
+      const paddedHeight = rawHeight + padding * 2;
       previewContentBounds = {
-        width,
-        height,
+        width: paddedWidth,
+        height: paddedHeight,
       };
-      preview.contentWidth = width;
-      preview.contentHeight = height;
+      preview.contentWidth = paddedWidth;
+      preview.contentHeight = paddedHeight;
       nextTick(() => {
         updatePreviewTransform();
       });
@@ -4932,6 +4947,7 @@ createApp({
       previewViewportRef,
       previewStageRef,
       previewStageStyle,
+      previewStageContentStyle,
       previewZoomLevel,
       hasPreviewContent,
       isPreviewDirty,
