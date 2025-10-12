@@ -859,6 +859,8 @@ createApp({
       contentWidth: 0,
       contentHeight: 0,
     });
+    const previewPanelHeight = ref(360);
+    const isPreviewLoading = ref(false);
     const sidebarTab = ref('code');
     const lastRenderedTikz = ref('');
     const autoUpdateTikz = ref(true);
@@ -922,6 +924,8 @@ createApp({
 
     let feedbackTimeout = null;
     let resizeObserver = null;
+    let previewLoadingTimeout = null;
+    let pendingRenderedTikz = null;
 
     function flash(message) {
       feedback.value = message;
@@ -2011,6 +2015,9 @@ createApp({
       transformOrigin: '0 0',
       willChange: 'transform',
     }));
+    const previewFrameStyle = computed(() => ({
+      height: `${previewPanelHeight.value}px`,
+    }));
     const hasPreviewContent = computed(() => !!preview.srcdoc);
     const isPreviewDirty = computed(
       () => !!tikzCode.value && tikzCode.value !== lastRenderedTikz.value
@@ -2023,12 +2030,95 @@ createApp({
     const PREVIEW_PADDING_RATIO = 0.1;
     const PREVIEW_PADDING_MIN = 32;
     const PREVIEW_PADDING_MAX = 160;
+    const PREVIEW_HEIGHT_MIN = 240;
+    const PREVIEW_HEIGHT_MAX = 780;
+    const previewResizeState = reactive({
+      active: false,
+      startY: 0,
+      initialHeight: previewPanelHeight.value,
+      previousUserSelect: '',
+    });
 
     function clampPreviewScale(value) {
       if (!Number.isFinite(value) || value <= 0) {
         return PREVIEW_MIN_SCALE;
       }
       return Math.min(PREVIEW_MAX_SCALE, Math.max(PREVIEW_MIN_SCALE, value));
+    }
+
+    function clampPreviewHeight(value) {
+      if (!Number.isFinite(value)) {
+        return PREVIEW_HEIGHT_MIN;
+      }
+      return Math.min(PREVIEW_HEIGHT_MAX, Math.max(PREVIEW_HEIGHT_MIN, value));
+    }
+
+    function handlePreviewResizeMove(event) {
+      if (!previewResizeState.active) {
+        return;
+      }
+      const delta = event.clientY - previewResizeState.startY;
+      const nextHeight = clampPreviewHeight(previewResizeState.initialHeight + delta);
+      if (nextHeight !== previewPanelHeight.value) {
+        previewPanelHeight.value = nextHeight;
+        if (previewContentBounds) {
+          nextTick(() => {
+            updatePreviewTransform();
+          });
+        }
+      }
+    }
+
+    function adjustPreviewHeightBy(delta) {
+      const nextHeight = clampPreviewHeight(previewPanelHeight.value + delta);
+      if (nextHeight === previewPanelHeight.value) {
+        return;
+      }
+      previewPanelHeight.value = nextHeight;
+      if (previewContentBounds) {
+        nextTick(() => {
+          updatePreviewTransform();
+        });
+      }
+    }
+
+    function stopPreviewResize() {
+      if (!previewResizeState.active) {
+        window.removeEventListener('pointermove', handlePreviewResizeMove);
+        window.removeEventListener('pointerup', stopPreviewResize);
+        window.removeEventListener('pointercancel', stopPreviewResize);
+        return;
+      }
+      previewResizeState.active = false;
+      window.removeEventListener('pointermove', handlePreviewResizeMove);
+      window.removeEventListener('pointerup', stopPreviewResize);
+      window.removeEventListener('pointercancel', stopPreviewResize);
+      if (typeof document !== 'undefined' && document.body) {
+        document.body.style.userSelect = previewResizeState.previousUserSelect || '';
+      }
+      previewResizeState.previousUserSelect = '';
+    }
+
+    function startPreviewResize(event) {
+      if (previewResizeState.active) {
+        return;
+      }
+      if (event.pointerType === 'mouse' && event.button !== 0) {
+        return;
+      }
+      previewResizeState.active = true;
+      previewResizeState.startY = event.clientY;
+      previewResizeState.initialHeight = previewPanelHeight.value;
+      if (typeof document !== 'undefined' && document.body) {
+        previewResizeState.previousUserSelect = document.body.style.userSelect;
+        document.body.style.userSelect = 'none';
+      } else {
+        previewResizeState.previousUserSelect = '';
+      }
+      window.addEventListener('pointermove', handlePreviewResizeMove);
+      window.addEventListener('pointerup', stopPreviewResize);
+      window.addEventListener('pointercancel', stopPreviewResize);
+      event.preventDefault();
     }
 
     function buildTikzPreviewSrcdoc(rawCode) {
@@ -2155,8 +2245,26 @@ createApp({
       preview.contentWidth = 0;
       preview.contentHeight = 0;
       previewContentBounds = null;
+      if (previewLoadingTimeout) {
+        clearTimeout(previewLoadingTimeout);
+        previewLoadingTimeout = null;
+      }
+      if (!tikzCode.value) {
+        preview.srcdoc = '';
+        isPreviewLoading.value = false;
+        lastRenderedTikz.value = '';
+        pendingRenderedTikz = null;
+        return;
+      }
       preview.srcdoc = buildTikzPreviewSrcdoc(tikzCode.value);
-      lastRenderedTikz.value = tikzCode.value || '';
+      isPreviewLoading.value = true;
+      pendingRenderedTikz = tikzCode.value || '';
+      if (typeof window !== 'undefined' && window.setTimeout) {
+        previewLoadingTimeout = window.setTimeout(() => {
+          isPreviewLoading.value = false;
+          previewLoadingTimeout = null;
+        }, 15000);
+      }
     }
 
     function getPreviewViewportRect() {
@@ -2279,6 +2387,16 @@ createApp({
         return;
       }
       if (event.data.type === 'tikz-preview-bounds' && event.data.bounds) {
+        isPreviewLoading.value = false;
+        if (previewLoadingTimeout) {
+          clearTimeout(previewLoadingTimeout);
+          previewLoadingTimeout = null;
+        }
+        const renderedCode = typeof pendingRenderedTikz === 'string'
+          ? pendingRenderedTikz
+          : tikzCode.value || '';
+        lastRenderedTikz.value = renderedCode;
+        pendingRenderedTikz = null;
         applyPreviewBounds(event.data.bounds);
       }
     }
@@ -4868,6 +4986,11 @@ createApp({
       window.removeEventListener('message', handlePreviewMessage);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      if (previewLoadingTimeout) {
+        clearTimeout(previewLoadingTimeout);
+        previewLoadingTimeout = null;
+      }
+      stopPreviewResize();
       window.removeEventListener('pointerdown', handleDocumentPointer);
     });
 
@@ -4948,14 +5071,18 @@ createApp({
       previewStageRef,
       previewStageStyle,
       previewStageContentStyle,
+      previewFrameStyle,
       previewZoomLevel,
       hasPreviewContent,
       isPreviewDirty,
       isPreviewPanning,
+      isPreviewLoading,
       sidebarTab,
       currentTheme,
       setTheme,
       renderPreview,
+      startPreviewResize,
+      adjustPreviewHeightBy,
       zoomPreviewIn,
       zoomPreviewOut,
       onPreviewPointerDown,

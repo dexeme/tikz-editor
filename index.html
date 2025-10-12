@@ -1373,19 +1373,12 @@
                         +
                       </button>
                     </div>
-                    <button
-                      type="button"
-                      class="btn btn-primary"
-                      @click="renderPreview"
-                      :disabled="!tikzCode || !isPreviewDirty"
-                    >
-                      Renderizar
-                    </button>
                   </div>
                 </header>
                 <div class="preview-content">
-                  <div v-if="hasPreviewContent" class="preview-frame">
+                  <div class="preview-frame" :style="previewFrameStyle">
                     <div
+                      v-if="hasPreviewContent"
                       class="preview-viewport"
                       ref="previewViewportRef"
                       :class="{ 'is-panning': isPreviewPanning }"
@@ -1416,10 +1409,49 @@
                         </div>
                       </div>
                     </div>
+                    <div v-else class="preview-placeholder">
+                      O diagrama renderizado aparecerá aqui após clicar em <strong>Renderizar</strong>.
+                    </div>
+                    <div
+                      v-if="isPreviewLoading"
+                      class="preview-loading-overlay"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <div class="preview-loading-bar">
+                        <span class="preview-loading-bar-fill"></span>
+                      </div>
+                      <p class="preview-loading-message">Renderizando pré-visualização…</p>
+                    </div>
                   </div>
-                  <p v-else class="preview-placeholder">
-                    O diagrama renderizado aparecerá aqui após clicar em <strong>Renderizar</strong>.
-                  </p>
+                  <div class="preview-actions">
+                    <span
+                      v-if="isPreviewLoading"
+                      class="preview-status"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      Renderizando pré-visualização…
+                    </span>
+                    <button
+                      type="button"
+                      class="btn btn-primary preview-render-button"
+                      @click="renderPreview"
+                      :disabled="!tikzCode || !isPreviewDirty || isPreviewLoading"
+                    >
+                      {{ isPreviewLoading ? 'Renderizando…' : 'Renderizar' }}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    class="preview-resize-handle"
+                    aria-label="Arraste ou use as setas para ajustar a altura da pré-visualização"
+                    @pointerdown="startPreviewResize"
+                    @keydown.up.prevent="adjustPreviewHeightBy(-24)"
+                    @keydown.down.prevent="adjustPreviewHeightBy(24)"
+                  >
+                    <span class="preview-resize-grip" aria-hidden="true"></span>
+                  </button>
                 </div>
               </div>
             </div>
