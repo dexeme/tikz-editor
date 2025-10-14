@@ -140,6 +140,16 @@ const circleAnchors = [
 ];
 
 export function registerCircle() {
-  registerShape('circle', createSimpleShape(['circle', ALIGN_CENTER]));
+  registerShape(
+    'circle',
+    createSimpleShape(
+      [
+        'circle',
+        'minimum size=3.5cm', // Circle diameter requirement
+        'shape aspect=1', // Circle aspect ratio requirement
+        ALIGN_CENTER,
+      ]
+    )
+  );
   registerShapeAnchors('circle', circleAnchors);
 }

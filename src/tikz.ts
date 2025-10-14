@@ -182,6 +182,19 @@ export function generateTikzDocument(
 
   filteredNodes.forEach(node => {
     const normalizedNode = normalizeNodeParameters(node);
+
+    if (normalizedNode.shape === 'rectangle') {
+      if (!normalizedNode.flags.hasExplicitLineWidth) {
+        normalizedNode.lineWidth = null;
+      }
+      if (!normalizedNode.flags.hasExplicitDraw) {
+        normalizedNode.draw = null;
+      }
+      if (!normalizedNode.flags.hasExplicitFill) {
+        normalizedNode.fill = null;
+      }
+    }
+
     const styleResult = buildStyleOptions(normalizedNode, { registerColor });
     styleResult.libraries.forEach(lib => libraries.add(lib));
 

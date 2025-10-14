@@ -33,6 +33,28 @@ function applyShapeDefaults(node) {
     return;
   }
 
+  if (node.shape === 'rectangle') {
+    if (!node.color || node.color === '#f8fafc') {
+      node.color = '#d9ffff'; // Approximation of cyan!15 for canvas rendering
+    }
+    if (!node.borderColor || node.borderColor === '#94a3b8') {
+      node.borderColor = '#800080'; // Purple stroke color
+    }
+    const widthValue = Number(node.borderWidth);
+    if (!Number.isFinite(widthValue) || widthValue === 3) {
+      node.borderWidth = 2.7; // Approximate 2pt stroke width in canvas pixels
+    }
+    if (!node.fontSize || node.fontSize === '16') {
+      node.fontSize = '24'; // Approximation of \Large
+    }
+    if (!node.fontWeight) {
+      node.fontWeight = '700'; // Bold font weight
+    }
+    if (!node.fontFamily) {
+      node.fontFamily = 'system-ui, sans-serif';
+    }
+  }
+
   if (node.shape === 'rectangle split') {
     node.rectangleSplitParts = clampRectangleSplitParts(node.rectangleSplitParts);
     return;

@@ -200,7 +200,13 @@ export function registerCloud() {
   registerShape(
     'cloud',
     createSimpleShape(
-      ['cloud', 'cloud puffs=10', 'minimum width=2.8cm', 'minimum height=1.8cm', ALIGN_CENTER],
+      [
+        'cloud',
+        'cloud puffs=18', // Cloud puff count requirement
+        'minimum width=2.8cm',
+        'minimum height=1.8cm',
+        ALIGN_CENTER,
+      ],
       ['shapes.symbols']
     )
   );

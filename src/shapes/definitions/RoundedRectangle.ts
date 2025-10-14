@@ -154,10 +154,15 @@ export function registerRoundedRectangle() {
   registerShape(
     'rounded rectangle',
     createSimpleShape(
-      ['rounded rectangle', 'minimum width=2.4cm', 'minimum height=1.2cm', ALIGN_CENTER],
+      [
+        'rounded rectangle',
+        'rounded corners=15pt', // Rounded rectangle corner radius requirement
+        'minimum width=2.4cm',
+        'minimum height=1.2cm',
+        ALIGN_CENTER,
+      ],
       ['shapes.misc']
     )
   );
   registerShapeAnchors('rounded rectangle', roundedRectangleAnchors);
 }
-

@@ -190,16 +190,39 @@ const rectangleAnchors = [
 
 export function registerRectangle() {
   registerShape('rectangle', params => {
+    const options = ['rectangle'];
+    const flags = params?.flags ?? {};
     const radius = Number.isFinite(params?.cornerRadius) ? params.cornerRadius : 16;
-    return {
-      options: [
-        'rectangle',
-        `rounded corners=${rounding(Math.max(0, radius))}pt`,
-        'minimum width=2.4cm',
-        'minimum height=1.2cm',
-        ALIGN_CENTER,
-      ],
-    };
+
+    if (flags.hasExplicitCornerRadius) {
+      options.push(`rounded corners=${rounding(Math.max(0, radius))}pt`);
+    } else {
+      options.push('rounded corners=8pt'); // Default rounded corner radius
+    }
+
+    if (!flags.hasExplicitDraw) {
+      options.push('draw=purple'); // Default rectangle stroke
+    }
+
+    if (!flags.hasExplicitLineWidth) {
+      options.push('line width=2pt'); // Default rectangle border thickness
+    }
+
+    options.push('dash pattern=on 5pt off 3pt'); // Rectangle border dash pattern
+
+    if (!flags.hasExplicitFill) {
+      options.push('fill=cyan!15'); // Default rectangle fill
+    }
+
+    options.push('minimum width=6cm'); // Rectangle minimum width
+    options.push('minimum height=2.5cm'); // Rectangle minimum height
+    options.push('inner sep=12pt'); // Rectangle inner padding
+    options.push('outer sep=5pt'); // Rectangle outer spacing
+    options.push(ALIGN_CENTER);
+    options.push('font=\\bfseries\\Large\\sffamily'); // Rectangle typography
+    options.push('anchor=south west'); // Rectangle anchor requirement
+
+    return { options };
   });
 
   registerShapeAnchors('rectangle', rectangleAnchors);
