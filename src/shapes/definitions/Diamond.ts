@@ -143,13 +143,13 @@ const diamondAnchors = [
   {
     id: '130',
     tikz: '130',
-    isConnectable: true,
+    isConnectable: false,
     getPoint: diamondBorderPoint(130),
   },
   {
     id: '10',
     tikz: '10',
-    isConnectable: true,
+    isConnectable: false,
     getPoint: diamondBorderPoint(10),
   },
 ];
