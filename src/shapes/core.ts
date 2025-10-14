@@ -44,6 +44,7 @@ const SUPPORTED_NODE_KEYS = new Set([
   'cylinderUsesCustomFill',
   'cylinderEndFill',
   'cylinderBodyFill',
+  'rectangleSplitParts',
 ]);
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));

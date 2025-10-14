@@ -8,25 +8,24 @@ import { getNodeDimensions } from '../../utils/sceneMetrics.js';
 const ALIGN_CENTER = 'align=center';
 const toRadians = degrees => (degrees * Math.PI) / 180;
 
-const ellipseBorderPoint = angle => node => {
+const ratioPoint = (sx, sy) => node => {
   const { halfWidth, halfHeight } = getNodeDimensions(node);
-  const radians = toRadians(angle);
-  const dx = Math.cos(radians);
-  const dy = -Math.sin(radians);
-  const safeHalfWidth = halfWidth || 1;
-  const safeHalfHeight = halfHeight || 1;
-  const denominator = Math.sqrt(
-    (dx * dx) / (safeHalfWidth * safeHalfWidth) +
-      (dy * dy) / (safeHalfHeight * safeHalfHeight)
-  );
-  const scale = denominator === 0 ? 0 : 1 / denominator;
   return {
-    x: node.x + dx * scale,
-    y: node.y + dy * scale,
+    x: node.x + halfWidth * sx,
+    y: node.y + halfHeight * sy,
   };
 };
 
-const ellipseAnchors = [
+const semicircleArcPoint = angle => node => {
+  const { halfWidth, halfHeight } = getNodeDimensions(node);
+  const radians = toRadians(angle);
+  return {
+    x: node.x + Math.cos(radians) * halfWidth,
+    y: node.y - Math.sin(radians) * halfHeight,
+  };
+};
+
+const semicircleAnchors = [
   {
     id: 'center',
     tikz: 'center',
@@ -52,123 +51,133 @@ const ellipseAnchors = [
     tikz: 'base',
     isConnectable: false,
     aliases: ['b'],
-    getPoint: node => {
-      const { halfHeight } = getNodeDimensions(node);
-      return { x: node.x, y: node.y + halfHeight / 2 };
-    },
+    getPoint: ratioPoint(0, 1),
   },
   {
     id: 'north',
     tikz: 'north',
     isConnectable: true,
     aliases: ['n'],
-    getPoint: node => {
-      const { halfHeight } = getNodeDimensions(node);
-      return { x: node.x, y: node.y - halfHeight };
-    },
+    getPoint: semicircleArcPoint(90),
+  },
+  {
+    id: 'apex',
+    tikz: 'apex',
+    isConnectable: true,
+    getPoint: semicircleArcPoint(90),
   },
   {
     id: 'south',
     tikz: 'south',
     isConnectable: true,
     aliases: ['s'],
-    getPoint: node => {
-      const { halfHeight } = getNodeDimensions(node);
-      return { x: node.x, y: node.y + halfHeight };
-    },
+    getPoint: ratioPoint(0, 1),
   },
   {
     id: 'east',
     tikz: 'east',
     isConnectable: true,
     aliases: ['e'],
-    getPoint: node => {
-      const { halfWidth } = getNodeDimensions(node);
-      return { x: node.x + halfWidth, y: node.y };
-    },
+    getPoint: ratioPoint(1, 0),
   },
   {
     id: 'west',
     tikz: 'west',
     isConnectable: true,
     aliases: ['w'],
-    getPoint: node => {
-      const { halfWidth } = getNodeDimensions(node);
-      return { x: node.x - halfWidth, y: node.y };
-    },
+    getPoint: ratioPoint(-1, 0),
   },
   {
     id: 'north east',
     tikz: 'north east',
     isConnectable: true,
     aliases: ['ne', 'northeast'],
-    getPoint: ellipseBorderPoint(45),
+    getPoint: semicircleArcPoint(45),
   },
   {
     id: 'north west',
     tikz: 'north west',
     isConnectable: true,
     aliases: ['nw', 'northwest'],
-    getPoint: ellipseBorderPoint(135),
+    getPoint: semicircleArcPoint(135),
   },
   {
     id: 'south east',
     tikz: 'south east',
     isConnectable: true,
     aliases: ['se', 'southeast'],
-    getPoint: ellipseBorderPoint(315),
+    getPoint: ratioPoint(1, 1),
   },
   {
     id: 'south west',
     tikz: 'south west',
     isConnectable: true,
     aliases: ['sw', 'southwest'],
-    getPoint: ellipseBorderPoint(225),
+    getPoint: ratioPoint(-1, 1),
   },
   {
-    id: 'mid west',
-    tikz: 'mid west',
+    id: 'arc start',
+    tikz: 'arc start',
     isConnectable: true,
-    aliases: ['midwest'],
-    getPoint: ellipseBorderPoint(180),
+    getPoint: ratioPoint(1, 1),
+  },
+  {
+    id: 'arc end',
+    tikz: 'arc end',
+    isConnectable: true,
+    getPoint: ratioPoint(-1, 1),
+  },
+  {
+    id: 'chord center',
+    tikz: 'chord center',
+    isConnectable: true,
+    getPoint: ratioPoint(0, 1),
   },
   {
     id: 'mid east',
     tikz: 'mid east',
     isConnectable: true,
     aliases: ['mideast'],
-    getPoint: ellipseBorderPoint(0),
+    getPoint: ratioPoint(1, 0),
   },
   {
-    id: 'base west',
-    tikz: 'base west',
+    id: 'mid west',
+    tikz: 'mid west',
     isConnectable: true,
-    getPoint: ellipseBorderPoint(225),
+    aliases: ['midwest'],
+    getPoint: ratioPoint(-1, 0),
   },
   {
     id: 'base east',
     tikz: 'base east',
     isConnectable: true,
-    getPoint: ellipseBorderPoint(315),
+    getPoint: ratioPoint(1, 1),
   },
   {
-    id: '130',
-    tikz: '130',
-    isConnectable: false,
-    getPoint: ellipseBorderPoint(130),
+    id: 'base west',
+    tikz: 'base west',
+    isConnectable: true,
+    getPoint: ratioPoint(-1, 1),
+  },
+  {
+    id: '30',
+    tikz: '30',
+    isConnectable: true,
+    getPoint: semicircleArcPoint(30),
   },
   {
     id: '10',
     tikz: '10',
-    isConnectable: false,
-    getPoint: ellipseBorderPoint(10),
+    isConnectable: true,
+    getPoint: semicircleArcPoint(10),
   },
 ];
 
-export function registerEllipse() {
+export function registerSemicircle() {
   registerShape(
-    'ellipse',
-    createSimpleShape(['ellipse', ALIGN_CENTER], ['shapes.geometric'])
+    'semicircle',
+    createSimpleShape(['semicircle', ALIGN_CENTER], ['shapes.geometric'])
   );
-  registerShapeAnchors('ellipse', ellipseAnchors);
+  registerShapeAnchors('semicircle', semicircleAnchors);
 }
+

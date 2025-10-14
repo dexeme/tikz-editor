@@ -27,6 +27,48 @@ const getNodeBounds = computeNodeBounds;
 const RADIAN_FACTOR = Math.PI / 180;
 const toRadians = degrees => degrees * RADIAN_FACTOR;
 
+const CLOUD_PUFF_SHAPE = [
+  { sx: 0, sy: 1 },
+  { sx: -0.597326, sy: 0.810173 },
+  { sx: -0.96766, sy: 0.312055 },
+  { sx: -0.96766, sy: -0.312055 },
+  { sx: -0.597326, sy: -0.810173 },
+  { sx: 0, sy: -1 },
+  { sx: 0.597326, sy: -0.810173 },
+  { sx: 0.96766, sy: -0.312055 },
+  { sx: 0.96766, sy: 0.312055 },
+  { sx: 0.597326, sy: 0.810173 },
+];
+
+const RECTANGLE_SPLIT_MIN_PARTS = 4;
+const RECTANGLE_SPLIT_MAX_PARTS = 6;
+
+const clampRectangleSplitParts = value => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return RECTANGLE_SPLIT_MIN_PARTS;
+  }
+  return Math.max(
+    RECTANGLE_SPLIT_MIN_PARTS,
+    Math.min(RECTANGLE_SPLIT_MAX_PARTS, Math.round(numeric))
+  );
+};
+
+const getRectangleSplitMetrics = node => {
+  const { halfWidth, halfHeight } = getNodeDimensions(node);
+  const parts = clampRectangleSplitParts(node?.rectangleSplitParts);
+  const height = halfHeight * 2;
+  const top = node.y - halfHeight;
+  const partHeight = height / parts;
+  return {
+    halfWidth,
+    halfHeight,
+    parts,
+    top,
+    partHeight,
+  };
+};
+
 function rotatePointAround(point, center, radians) {
   if (!radians) {
     return { x: point.x, y: point.y };
@@ -902,19 +944,39 @@ export function createCanvasRenderer(canvas, state) {
 
   function getNodePath(node) {
     const path = new Path2D();
-    const halfWidth = NODE_WIDTH / 2;
-    const halfHeight = NODE_HEIGHT / 2;
+    const { halfWidth: rawHalfWidth, halfHeight: rawHalfHeight } = getNodeDimensions(node);
+    const halfWidth = rawHalfWidth || NODE_WIDTH / 2;
+    const halfHeight = rawHalfHeight || NODE_HEIGHT / 2;
+    const width = halfWidth * 2;
+    const height = halfHeight * 2;
+
     switch (node.shape) {
       case 'rectangle':
+      case 'rounded rectangle':
         addRoundedRect(
           path,
           node.x - halfWidth,
           node.y - halfHeight,
-          NODE_WIDTH,
-          NODE_HEIGHT,
+          width,
+          height,
           Math.max(0, node.cornerRadius ?? 16)
         );
         break;
+      case 'rectangle split': {
+        const metrics = getRectangleSplitMetrics(node);
+        path.rect(
+          node.x - metrics.halfWidth,
+          node.y - metrics.halfHeight,
+          metrics.halfWidth * 2,
+          metrics.halfHeight * 2
+        );
+        for (let i = 1; i < metrics.parts; i += 1) {
+          const y = metrics.top + metrics.partHeight * i;
+          path.moveTo(node.x - metrics.halfWidth, y);
+          path.lineTo(node.x + metrics.halfWidth, y);
+        }
+        break;
+      }
       case 'triangle': {
         path.moveTo(node.x, node.y - halfHeight);
         path.lineTo(node.x + halfWidth, node.y + halfHeight);
@@ -940,6 +1002,20 @@ export function createCanvasRenderer(canvas, state) {
         path.closePath();
         break;
       }
+      case 'semicircle': {
+        const baseY = node.y + halfHeight;
+        path.moveTo(node.x - halfWidth, baseY);
+        path.lineTo(node.x + halfWidth, baseY);
+        path.ellipse(node.x, baseY, halfWidth, halfHeight, 0, 0, Math.PI, false);
+        path.closePath();
+        break;
+      }
+      case 'ellipse':
+        path.ellipse(node.x, node.y, halfWidth, halfHeight, 0, 0, Math.PI * 2);
+        break;
+      case 'cloud':
+        addCloudPath(path, node, halfWidth, halfHeight);
+        break;
       case 'cylinder': {
         const rx = halfWidth;
         const aspectRaw = Number(node.aspect);
@@ -956,8 +1032,11 @@ export function createCanvasRenderer(canvas, state) {
         path.closePath();
         break;
       }
+      case 'circle':
+        path.arc(node.x, node.y, halfWidth, 0, Math.PI * 2);
+        break;
       default:
-        path.arc(node.x, node.y, NODE_RADIUS, 0, Math.PI * 2);
+        path.ellipse(node.x, node.y, halfWidth, halfHeight, 0, 0, Math.PI * 2);
     }
     return path;
   }
@@ -976,6 +1055,34 @@ export function createCanvasRenderer(canvas, state) {
     const path = new Path2D();
     addRoundedRect(path, x, y, width, height, radius);
     return path;
+  }
+
+  function addCloudPath(path, node, halfWidth, halfHeight) {
+    const scalePoint = ({ sx, sy }) => ({
+      x: node.x + halfWidth * sx,
+      y: node.y - halfHeight * sy,
+    });
+    const points = CLOUD_PUFF_SHAPE.map(scalePoint);
+    if (points.length === 0) {
+      path.ellipse(node.x, node.y, halfWidth, halfHeight, 0, 0, Math.PI * 2);
+      return;
+    }
+    const startMid = midpoint(points[points.length - 1], points[0]);
+    path.moveTo(startMid.x, startMid.y);
+    for (let i = 0; i < points.length; i += 1) {
+      const current = points[i];
+      const next = points[(i + 1) % points.length];
+      const mid = midpoint(current, next);
+      path.quadraticCurveTo(current.x, current.y, mid.x, mid.y);
+    }
+    path.closePath();
+  }
+
+  function midpoint(a, b) {
+    return {
+      x: (a.x + b.x) / 2,
+      y: (a.y + b.y) / 2,
+    };
   }
 
   function calculateEdgeGeometry(from, to, edge) {

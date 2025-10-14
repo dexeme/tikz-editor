@@ -139,13 +139,13 @@ const rectangleAnchors = [
   {
     id: '130',
     tikz: '130',
-    isConnectable: true,
+    isConnectable: false,
     getPoint: rectangleBorderPoint(130),
   },
   {
     id: '10',
     tikz: '10',
-    isConnectable: true,
+    isConnectable: false,
     getPoint: rectangleBorderPoint(10),
   },
   {

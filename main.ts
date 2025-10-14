@@ -29,7 +29,16 @@ const defaultNode = shape => ({
 });
 
 function applyShapeDefaults(node) {
-  if (!node || node.shape !== 'cylinder') {
+  if (!node) {
+    return;
+  }
+
+  if (node.shape === 'rectangle split') {
+    node.rectangleSplitParts = clampRectangleSplitParts(node.rectangleSplitParts);
+    return;
+  }
+
+  if (node.shape !== 'cylinder') {
     return;
   }
 
@@ -87,6 +96,14 @@ let matrixSequence = 1;
 let lineSequence = 1;
 
 const DEFAULT_EDGE_THICKNESS = 2.5;
+const RECTANGLE_SPLIT_DEFAULT_PARTS = 4;
+const clampRectangleSplitParts = value => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return RECTANGLE_SPLIT_DEFAULT_PARTS;
+  }
+  return Math.min(6, Math.max(4, Math.round(numeric)));
+};
 
 function makeNode(x, y, shape) {
   return normalizeNode({
@@ -285,11 +302,16 @@ createApp({
 
     const availableShapes = [
       { id: 'rectangle', label: 'Rectangle', shortcut: 'R' },
+      { id: 'rounded rectangle', label: 'Rounded rectangle', shortcut: 'U' },
+      { id: 'rectangle split', label: 'Rectangle split', shortcut: 'P' },
       { id: 'circle', label: 'Circle', shortcut: 'C' },
-      { id: 'cylinder', label: 'Cylinder', shortcut: 'Y' },
-      { id: 'decision', label: 'Decision node', shortcut: 'D' },
-      { id: 'diamond', label: 'Diamond', shortcut: 'G' },
+      { id: 'ellipse', label: 'Ellipse', shortcut: 'E' },
+      { id: 'semicircle', label: 'Semicircle', shortcut: 'S' },
       { id: 'triangle', label: 'Triangle', shortcut: 'T' },
+      { id: 'diamond', label: 'Diamond', shortcut: 'G' },
+      { id: 'decision', label: 'Decision node', shortcut: 'D' },
+      { id: 'cylinder', label: 'Cylinder', shortcut: 'Y' },
+      { id: 'cloud', label: 'Cloud', shortcut: 'L' },
     ];
     const activeShapeId = ref(availableShapes[0]?.id || null);
     const activeShape = computed(() =>
@@ -1318,6 +1340,7 @@ createApp({
         pushHistory();
       }
       renderer.value?.draw();
+      invalidateTikz();
     }
 
     function applyNodeBorder(color, options = {}) {
@@ -1411,6 +1434,26 @@ createApp({
       if ((options.commit !== false && changed) || options.forceCommit) {
         pushHistory();
       }
+    }
+
+    function updateRectangleSplitParts(value, options = {}) {
+      const nodes = selectedNodes.value;
+      if (!nodes.length) {
+        return;
+      }
+      const clamped = clampRectangleSplitParts(value);
+      let changed = false;
+      nodes.forEach(node => {
+        const previous = clampRectangleSplitParts(node.rectangleSplitParts);
+        if (previous !== clamped) {
+          node.rectangleSplitParts = clamped;
+          changed = true;
+        }
+      });
+      if ((options.commit !== false && changed) || options.forceCommit) {
+        pushHistory();
+      }
+      renderer.value?.draw();
     }
 
     function setNodeFontSize(size) {
@@ -5323,6 +5366,7 @@ createApp({
       addCustomColor,
       updateNodeBorderWidth,
       updateNodeCornerRadius,
+      updateRectangleSplitParts,
       setNodeFontSize,
       setNodeShape,
       updateCylinderRotate,
