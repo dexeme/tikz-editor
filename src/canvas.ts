@@ -18,6 +18,7 @@ const CONNECTION_HANDLE_HITBOX = CONNECTION_HANDLE_RADIUS * 1.75;
 const GRID_SPACING = 64;
 const FRAME_HANDLE_SIZE = 16;
 const FRAME_HIT_PADDING = 12;
+const DEFAULT_EDGE_THICKNESS = 2.5;
 
 registerBuiltInShapes();
 
@@ -40,8 +41,8 @@ const CLOUD_PUFF_SHAPE = [
   { sx: 0.597326, sy: 0.810173 },
 ];
 
-const RECTANGLE_SPLIT_MIN_PARTS = 4;
-const RECTANGLE_SPLIT_MAX_PARTS = 6;
+const RECTANGLE_SPLIT_MIN_PARTS = 2;
+const RECTANGLE_SPLIT_MAX_PARTS = 12;
 
 const clampRectangleSplitParts = value => {
   const numeric = Number(value);
@@ -130,6 +131,24 @@ const darkenColor = (color, amount = 0.2) => mixColors(color, '#0f172a', amount)
 
 const resolveColor = (candidate, fallback) =>
   typeof candidate === 'string' && candidate.trim() ? candidate.trim() : fallback;
+
+const clampOpacity = value => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 1;
+  }
+  return Math.min(1, Math.max(0.05, numeric));
+};
+
+const resolveDashPattern = (style, scale) => {
+  if (style === 'dashed') {
+    return [12 / scale, 8 / scale];
+  }
+  if (style === 'dotted') {
+    return [3 / scale, 6 / scale];
+  }
+  return [];
+};
 
 const THEME_PALETTE = {
   dark: {
@@ -280,6 +299,7 @@ function getAnchorPoints(node) {
 const TEXT_BLOCK_MIN_WIDTH = 96;
 const TEXT_BLOCK_MIN_HEIGHT = 60;
 const TEXT_BLOCK_PADDING = 14;
+const TEXT_BLOCK_BORDER_WIDTH_DEFAULT = 2;
 const TEXT_HANDLE_SIZE = 12;
 
 export const TEXT_BLOCK_CONSTRAINTS = {
@@ -499,7 +519,7 @@ export function createCanvasRenderer(canvas, state) {
     ctx.restore();
   }
 
-  function drawCylinderNode(node, strokeColor) {
+  function drawCylinderNode(node, strokeColor, dashPattern) {
     const metrics = getCylinderMetrics(node);
     const { rx, ry, bodyHeight, paddingX, paddingY } = metrics;
     const scale = getCameraScale();
@@ -550,7 +570,11 @@ export function createCanvasRenderer(canvas, state) {
     const outerStrokeWidth = ctx.lineWidth;
 
     ctx.strokeStyle = strokeColor;
-    ctx.setLineDash([]);
+    if (dashPattern.length) {
+      ctx.setLineDash(dashPattern);
+    } else {
+      ctx.setLineDash([]);
+    }
     ctx.stroke(bodyPath);
 
     ctx.save();
@@ -616,6 +640,13 @@ export function createCanvasRenderer(canvas, state) {
     })();
     ctx.lineWidth = Math.max(width, 1) / scale;
     ctx.strokeStyle = strokeColor;
+    const dashPattern = resolveDashPattern(node.borderStyle, scale);
+    if (dashPattern.length) {
+      ctx.setLineDash(dashPattern);
+    } else {
+      ctx.setLineDash([]);
+    }
+    ctx.globalAlpha = clampOpacity(node.opacity ?? 1);
 
     const rotateDeg = Number(node.rotate);
     const rotateRad = Number.isFinite(rotateDeg) ? toRadians(rotateDeg) : 0;
@@ -638,7 +669,12 @@ export function createCanvasRenderer(canvas, state) {
     }
 
     if (node.shape === 'cylinder') {
-      drawCylinderNode(node, strokeColor);
+      drawCylinderNode(node, strokeColor, dashPattern);
+    } else if (node.shape === 'rectangle split') {
+      drawRectangleSplitNode(node, strokeColor, dashPattern);
+      ctx.restore();
+      ctx.restore();
+      return;
     } else {
       ctx.fillStyle = node.color || '#e2e8f0';
       const path = getNodePath(node);
@@ -710,6 +746,125 @@ export function createCanvasRenderer(canvas, state) {
       ctx.fillText(line, node.x, offsetY);
       offsetY += lineHeight;
     });
+    ctx.restore();
+  }
+
+  function drawRectangleSplitNode(node, strokeColor, dashPattern) {
+    const scale = getCameraScale();
+    const metrics = getRectangleSplitMetrics(node);
+    const width = metrics.halfWidth * 2;
+    const left = node.x - metrics.halfWidth;
+    const cells = Array.isArray(node.rectangleSplitCells) ? node.rectangleSplitCells : [];
+    const baseFill = node.color || '#e2e8f0';
+
+    ctx.save();
+    for (let index = 0; index < metrics.parts; index += 1) {
+      const cell = cells[index] || {};
+      const fill = resolveColor(cell.fill, baseFill);
+      if (fill) {
+        ctx.fillStyle = fill;
+        const top = metrics.top + metrics.partHeight * index;
+        ctx.fillRect(left, top, width, metrics.partHeight);
+      }
+    }
+    ctx.lineWidth = Math.max(Number(node.borderWidth) || 3, 1) / scale;
+    ctx.strokeStyle = strokeColor;
+    if (dashPattern.length) {
+      ctx.setLineDash(dashPattern);
+    }
+    ctx.strokeRect(left, metrics.top, width, metrics.partHeight * metrics.parts);
+    for (let split = 1; split < metrics.parts; split += 1) {
+      const y = metrics.top + metrics.partHeight * split;
+      ctx.beginPath();
+      ctx.moveTo(left, y);
+      ctx.lineTo(left + width, y);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    drawRectangleSplitLabels(node, metrics, cells);
+    ctx.restore();
+  }
+
+  function drawRectangleSplitLabels(node, metrics, cells) {
+    const fontSize = Number(node.fontSize) || 16;
+    const lineHeight = fontSize * 1.25;
+    const maxTextWidth = Math.max(16, metrics.halfWidth * 2 - fontSize * 0.5);
+    const maxLines = Math.max(1, Math.floor(metrics.partHeight / lineHeight));
+
+    const truncateWithEllipsis = text => {
+      const ellipsis = '…';
+      const raw = text.trimEnd();
+      if (ctx.measureText(raw).width <= maxTextWidth) {
+        return raw || ellipsis;
+      }
+      let best = ellipsis;
+      let low = 0;
+      let high = raw.length;
+      while (low <= high) {
+        const mid = Math.floor((low + high) / 2);
+        const candidate = `${raw.slice(0, mid).trimEnd()}${ellipsis}`;
+        if (ctx.measureText(candidate).width <= maxTextWidth) {
+          best = candidate;
+          low = mid + 1;
+        } else {
+          high = mid - 1;
+        }
+      }
+      return best;
+    };
+
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `600 ${fontSize}px Inter, system-ui`;
+
+    for (let index = 0; index < metrics.parts; index += 1) {
+      const cell = cells[index] || {};
+      const rawText = typeof cell.text === 'string' ? cell.text : '';
+      const textColor = resolveColor(cell.textColor, '#0f172a');
+      const rows = rawText.split(/\n/);
+      const lines = [];
+      rows.forEach(row => {
+        const words = row.split(/\s+/);
+        let current = '';
+        words.forEach((word, wordIndex) => {
+          if (!word && wordIndex !== words.length - 1) {
+            return;
+          }
+          const tentative = current ? `${current} ${word}`.trim() : word;
+          if (ctx.measureText(tentative).width <= maxTextWidth) {
+            current = tentative;
+          } else {
+            if (current) {
+              lines.push(current);
+            }
+            current = word;
+          }
+        });
+        if (current) {
+          lines.push(current);
+        } else if (!words.length) {
+          lines.push('');
+        }
+      });
+      if (lines.length > maxLines) {
+        const truncated = lines.slice(0, maxLines);
+        truncated[maxLines - 1] = truncateWithEllipsis(truncated[maxLines - 1] || '');
+        lines.length = 0;
+        Array.prototype.push.apply(lines, truncated);
+      }
+      if (!lines.length) {
+        lines.push('');
+      }
+      const totalHeight = lineHeight * (lines.length - 1);
+      let offsetY = metrics.top + metrics.partHeight * index + metrics.partHeight / 2 - totalHeight / 2;
+      ctx.fillStyle = textColor;
+      lines.forEach(line => {
+        ctx.fillText(line || '\u2009', node.x, offsetY);
+        offsetY += lineHeight;
+      });
+    }
+
     ctx.restore();
   }
 
@@ -787,7 +942,7 @@ export function createCanvasRenderer(canvas, state) {
     if (!line?.start || !line?.end) return;
     const scale = getCameraScale();
     const isSelected = isLineSelected(line.id);
-    const width = Number(line.thickness) || state.edgeThickness || 2.5;
+    const width = Number(line.thickness) || DEFAULT_EDGE_THICKNESS;
     const strokeWidth = Math.max(width, 0.75) / scale;
     const baseColor = line.color || '#94a3b8';
     const style = typeof line.style === 'string' ? line.style : 'solid';
@@ -832,16 +987,43 @@ export function createCanvasRenderer(canvas, state) {
     ctx.save();
     const scale = getCameraScale();
     const isSelected = state.selected?.item?.id === block.id;
-    const thickness = state.edgeThickness || 2.5;
-    ctx.lineWidth = thickness / scale;
     const palette = getThemePalette();
-    ctx.strokeStyle = isSelected ? '#38bdf8' : palette.textBlockStroke;
-    ctx.fillStyle = palette.textBlockFill;
+    const showBackground = block.showBackground !== false;
+    const fillColor = showBackground
+      ? resolveColor(block.fillColor, palette.textBlockFill)
+      : null;
+    const borderColor = resolveColor(block.borderColor, palette.textBlockStroke);
+    const borderWidth = Math.max(Number(block.borderWidth) || TEXT_BLOCK_BORDER_WIDTH_DEFAULT, 0);
+    const opacity = clampOpacity(block.opacity ?? 1);
+    const dashPattern = resolveDashPattern(block.borderStyle, scale);
 
     const radius = 12;
     const path = roundedRectPath(block.x, block.y, block.width, block.height, radius);
-    ctx.fill(path);
-    ctx.stroke(path);
+
+    ctx.globalAlpha = opacity;
+    if (fillColor) {
+      ctx.fillStyle = fillColor;
+      ctx.fill(path);
+    }
+    if (borderWidth > 0) {
+      ctx.lineWidth = borderWidth / scale;
+      ctx.strokeStyle = borderColor;
+      if (dashPattern.length) {
+        ctx.setLineDash(dashPattern);
+      }
+      ctx.stroke(path);
+      ctx.setLineDash([]);
+    }
+    ctx.globalAlpha = 1;
+
+    if (isSelected) {
+      ctx.save();
+      ctx.lineWidth = Math.max(borderWidth / scale + 2 / scale, 1 / scale);
+      ctx.strokeStyle = '#38bdf8';
+      ctx.setLineDash([6 / scale, 6 / scale]);
+      ctx.stroke(path);
+      ctx.restore();
+    }
 
     ctx.save();
     ctx.beginPath();
@@ -852,7 +1034,10 @@ export function createCanvasRenderer(canvas, state) {
       block.height - TEXT_BLOCK_PADDING * 2
     );
     ctx.clip();
-    ctx.fillStyle = palette.textBlockText;
+    const textColor = typeof block.color === 'string' && block.color
+      ? block.color
+      : palette.textBlockText;
+    ctx.fillStyle = textColor;
     ctx.font = `${block.fontWeight || 500} ${block.fontSize || 16}px Inter, system-ui`;
     ctx.textBaseline = 'top';
     ctx.textAlign = 'left';

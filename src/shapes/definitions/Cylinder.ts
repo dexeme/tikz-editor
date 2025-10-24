@@ -2,7 +2,7 @@
 
 import { registerShape } from '../registry.js';
 import { registerShapeAnchors } from '../anchorRegistry.js';
-import { getCylinderMetrics } from '../../utils/sceneMetrics.js';
+import { getCylinderMetrics, formatCm } from '../../utils/sceneMetrics.js';
 
 const ALIGN_CENTER = 'align=center';
 const toRadians = degrees => (degrees * Math.PI) / 180;
@@ -248,6 +248,11 @@ export function registerCylinder() {
     const libraries = ['shapes.geometric'];
     const raw = params?.raw ?? {};
     const registerColor = typeof context.registerColor === 'function' ? context.registerColor : null;
+    const metrics = getCylinderMetrics(raw);
+    const minimumWidth = formatCm(metrics.width) || '4cm';
+    const minimumHeight = formatCm(metrics.totalHeight) || '4cm';
+    options.push(`minimum width=${minimumWidth}`);
+    options.push(`minimum height=${minimumHeight}`);
 
     const formatNumber = (value, digits = 2) => {
       const fixed = Number(value);
@@ -301,15 +306,6 @@ export function registerCylinder() {
       if (formatted) {
         options.push(`shape aspect=${formatted}`);
       }
-    }
-
-    const minHeight = sanitizeDimension(raw.minimumHeight);
-    if (minHeight) {
-      options.push(`minimum height=${minHeight}`);
-    }
-    const minWidth = sanitizeDimension(raw.minimumWidth);
-    if (minWidth) {
-      options.push(`minimum width=${minWidth}`);
     }
 
     const innerXsep = sanitizeDimension(raw.innerXsep);

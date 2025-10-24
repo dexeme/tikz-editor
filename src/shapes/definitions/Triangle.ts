@@ -1,9 +1,8 @@
 // @ts-nocheck
 
-import { createSimpleShape } from '../core.js';
 import { registerShape } from '../registry.js';
 import { registerShapeAnchors } from '../anchorRegistry.js';
-import { getNodeDimensions } from '../../utils/sceneMetrics.js';
+import { getNodeDimensions, resolveNodeSize, formatCm } from '../../utils/sceneMetrics.js';
 
 const ALIGN_CENTER = 'align=center';
 const toRadians = degrees => (degrees * Math.PI) / 180;
@@ -172,12 +171,24 @@ const triangleAnchors = [
 ];
 
 export function registerTriangle() {
-  registerShape(
-    'triangle',
-    createSimpleShape(
-      ['regular polygon', 'regular polygon sides=3', 'minimum size=1.8cm', ALIGN_CENTER],
-      ['shapes.geometric']
-    )
-  );
+  const WIDTH_FACTOR = Math.sqrt(3) / 2;
+  const HEIGHT_FACTOR = 0.75;
+  registerShape('triangle', params => {
+    const size = resolveNodeSize(params?.raw);
+    const width = Math.max(size.width, 1);
+    const height = Math.max(size.height, 1);
+    const minimumSizePx = width / WIDTH_FACTOR;
+    const baseHeightPx = minimumSizePx * HEIGHT_FACTOR;
+    const yscale = baseHeightPx > 0 ? height / baseHeightPx : 1;
+    const minimumSize = formatCm(minimumSizePx) || '3cm';
+    const options = ['regular polygon', 'regular polygon sides=3', `minimum size=${minimumSize}`, ALIGN_CENTER];
+    if (Math.abs(yscale - 1) > 0.01) {
+      options.push(`yscale=${yscale.toFixed(3)}`);
+    }
+    return {
+      options,
+      libraries: ['shapes.geometric'],
+    };
+  });
   registerShapeAnchors('triangle', triangleAnchors);
 }

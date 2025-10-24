@@ -4,8 +4,93 @@ export const NODE_RADIUS = 32;
 export const NODE_WIDTH = 112;
 export const NODE_HEIGHT = 64;
 
-export const DEFAULT_CYLINDER_MIN_WIDTH_CM = 1.6;
-export const DEFAULT_CYLINDER_MIN_HEIGHT_CM = 1.8;
+const MIN_SIZE = 8;
+
+export const PX_TO_CM = 0.05;
+
+export const pxToCm = (value: unknown) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+  return numeric * PX_TO_CM;
+};
+
+export const formatCm = (value: unknown, precision = 2) => {
+  const cmValue = pxToCm(value);
+  if (!Number.isFinite(cmValue)) {
+    return null;
+  }
+  const fixed = cmValue.toFixed(precision);
+  const normalized = precision > 0 ? fixed.replace(/\.?0+$/, '') : fixed;
+  return `${normalized}cm`;
+};
+
+const SHAPE_DEFAULT_SIZES: Record<string, { width: number; height: number }> = {
+  circle: { width: NODE_RADIUS * 2, height: NODE_RADIUS * 2 },
+};
+
+const sanitizePositive = (value: unknown): number | null => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return null;
+  }
+  return numeric;
+};
+
+const inferDimension = (
+  rawSize: unknown,
+  key: 'width' | 'height',
+  fallback: number
+): number => {
+  if (typeof rawSize === 'number') {
+    return Math.max(MIN_SIZE, rawSize);
+  }
+  if (!rawSize || typeof rawSize !== 'object') {
+    return Math.max(MIN_SIZE, fallback);
+  }
+  const direct = sanitizePositive((rawSize as Record<string, unknown>)[key]);
+  if (direct != null) {
+    return Math.max(MIN_SIZE, direct);
+  }
+  const mirrorKey = key === 'width' ? 'height' : 'width';
+  const mirror = sanitizePositive((rawSize as Record<string, unknown>)[mirrorKey]);
+  if (mirror != null) {
+    return Math.max(MIN_SIZE, mirror);
+  }
+  return Math.max(MIN_SIZE, fallback);
+};
+
+export function getDefaultNodeSize(shape: unknown) {
+  const key = typeof shape === 'string' ? shape.trim().toLowerCase() : '';
+  return (
+    SHAPE_DEFAULT_SIZES[key] || {
+      width: NODE_WIDTH,
+      height: NODE_HEIGHT,
+    }
+  );
+}
+
+export function resolveNodeSize(node: Record<string, unknown> | null | undefined) {
+  const fallback = getDefaultNodeSize(node?.shape);
+  if (!node) {
+    return { ...fallback };
+  }
+  if (node.shape === 'circle') {
+    const diameter = inferDimension(node.size, 'width', fallback.width);
+    const safeDiameter = Math.max(diameter, fallback.width);
+    return { width: safeDiameter, height: safeDiameter };
+  }
+  const width = inferDimension(node.size, 'width', fallback.width);
+  const height = inferDimension(node.size, 'height', fallback.height);
+  return {
+    width,
+    height,
+  };
+}
+
+export const DEFAULT_CYLINDER_MIN_WIDTH_CM = 5.6;
+export const DEFAULT_CYLINDER_MIN_HEIGHT_CM = 1.2;
 export const DEFAULT_CYLINDER_CONTENT_HEIGHT = 24;
 export const DEFAULT_CYLINDER_ASPECT = 0.1;
 
@@ -119,13 +204,16 @@ export function getCylinderMetrics(node = {}) {
 
 export function getNodeDimensions(node) {
   if (node?.shape === 'circle') {
-    return { halfWidth: NODE_RADIUS, halfHeight: NODE_RADIUS };
+    const size = resolveNodeSize(node);
+    const radius = Math.max(size.width, size.height) / 2;
+    return { halfWidth: radius, halfHeight: radius };
   }
   if (node?.shape === 'cylinder') {
     const metrics = getCylinderMetrics(node);
     return { halfWidth: metrics.halfWidth, halfHeight: metrics.halfHeight };
   }
-  return { halfWidth: NODE_WIDTH / 2, halfHeight: NODE_HEIGHT / 2 };
+  const size = resolveNodeSize(node);
+  return { halfWidth: size.width / 2, halfHeight: size.height / 2 };
 }
 
 export function getNodeBounds(node) {

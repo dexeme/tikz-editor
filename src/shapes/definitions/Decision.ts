@@ -1,9 +1,8 @@
 // @ts-nocheck
 
-import { createSimpleShape } from '../core.js';
 import { registerShape } from '../registry.js';
 import { registerShapeAnchors } from '../anchorRegistry.js';
-import { getNodeDimensions } from '../../utils/sceneMetrics.js';
+import { getNodeDimensions, resolveNodeSize, formatCm } from '../../utils/sceneMetrics.js';
 
 const ALIGN_CENTER = 'align=center';
 
@@ -57,12 +56,21 @@ const decisionAnchors = [
 ];
 
 export function registerDecision() {
-  registerShape(
-    'decision',
-    createSimpleShape(
-      ['regular polygon', 'regular polygon sides=6', 'minimum size=1.8cm', ALIGN_CENTER],
-      ['shapes.geometric']
-    )
-  );
+  registerShape('decision', params => {
+    const size = resolveNodeSize(params?.raw);
+    const minimumWidth = formatCm(size.width) || '4cm';
+    const minimumHeight = formatCm(size.height) || '3cm';
+    return {
+      options: [
+        'regular polygon',
+        'regular polygon sides=6',
+        'shape border rotate=90',
+        `minimum width=${minimumWidth}`,
+        `minimum height=${minimumHeight}`,
+        ALIGN_CENTER,
+      ],
+      libraries: ['shapes.geometric'],
+    };
+  });
   registerShapeAnchors('decision', decisionAnchors);
 }

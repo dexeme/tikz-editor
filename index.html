@@ -324,13 +324,13 @@
                               <div class="chip-grid">
                                 <button
                                   v-for="option in fontSizeOptions"
-                                  :key="`font-${option}`"
+                                  :key="`font-${option.value}`"
                                   type="button"
                                   class="chip"
-                                  :class="{ active: selectedNode.fontSize === option }"
-                                  @click="setNodeFontSize(option)"
+                                  :class="{ active: selectedNode.fontSize === option.value }"
+                                  @click="setNodeFontSize(option.value)"
                                 >
-                                  {{ option }}
+                                  {{ option.label }}
                                 </button>
                               </div>
                             </div>
@@ -905,6 +905,22 @@
                       <button
                         type="button"
                         class="command-button"
+                        @click="createTextBlock()"
+                        aria-label="Add text"
+                      >
+                        <span class="command-icon" aria-hidden="true">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 6h16" />
+                            <path d="M9 6v12" />
+                            <path d="M15 6v12" />
+                            <path d="M6 18h12" />
+                          </svg>
+                        </span>
+                        <span class="command-label">Text</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="command-button"
                         :class="{ active: mode === 'line' }"
                         @click="changeMode('line')"
                         aria-label="Linha livre"
@@ -1140,6 +1156,35 @@
                   </div>
                   <div class="inspector-grid">
                     <label class="inspector-field">
+                      <span>Border style</span>
+                      <select
+                        class="form-field"
+                        :value="selected.item.borderStyle || 'solid'"
+                        @change="updateNodeBorderStyle($event.target.value, { forceCommit: true })"
+                      >
+                        <option value="solid">Solid</option>
+                        <option value="dashed">Dashed</option>
+                        <option value="dotted">Dotted</option>
+                      </select>
+                    </label>
+                    <label class="inspector-field">
+                      <span>Opacity</span>
+                      <div class="inspector-slider">
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="5"
+                          :value="Math.round((selected.item.opacity ?? 1) * 100)"
+                          @input="updateNodeOpacity($event.target.value, { commit: false })"
+                          @change="updateNodeOpacity($event.target.value, { forceCommit: true })"
+                        >
+                        <span>{{ Math.round((selected.item.opacity ?? 1) * 100) }}%</span>
+                      </div>
+                    </label>
+                  </div>
+                  <div class="inspector-grid">
+                    <label class="inspector-field">
                       <span>Shape</span>
                       <select
                         class="form-field"
@@ -1162,6 +1207,59 @@
                           {{ option.label }}
                         </option>
                       </select>
+                    </label>
+                  </div>
+                  <div class="inspector-grid">
+                    <label class="inspector-field">
+                      <span>{{ selected.item.shape === 'circle' ? 'Diameter (px)' : 'Width (px)' }}</span>
+                      <div class="inspector-slider">
+                        <input
+                          type="range"
+                          :min="nodeSizeLimits.width.min"
+                          :max="nodeSizeLimits.width.max"
+                          step="1"
+                          :value="getNodeSizeSliderValue(selected.item, 'width')"
+                          @input="updateNodeSize('width', $event.target.value, { commit: false })"
+                          @change="updateNodeSize('width', $event.target.value, { forceCommit: true })"
+                        >
+                        <input
+                          type="number"
+                          class="form-field"
+                          style="width: 90px;"
+                          :min="nodeSizeLimits.width.min"
+                          :max="nodeSizeLimits.width.max"
+                          :value="getNodeSizeSliderValue(selected.item, 'width')"
+                          @input="updateNodeSize('width', $event.target.value, { commit: false })"
+                          @change="updateNodeSize('width', $event.target.value, { forceCommit: true })"
+                        >
+                      </div>
+                    </label>
+                    <label
+                      class="inspector-field"
+                      v-if="selected.item.shape !== 'circle'"
+                    >
+                      <span>Height (px)</span>
+                      <div class="inspector-slider">
+                        <input
+                          type="range"
+                          :min="nodeSizeLimits.height.min"
+                          :max="nodeSizeLimits.height.max"
+                          step="1"
+                          :value="getNodeSizeSliderValue(selected.item, 'height')"
+                          @input="updateNodeSize('height', $event.target.value, { commit: false })"
+                          @change="updateNodeSize('height', $event.target.value, { forceCommit: true })"
+                        >
+                        <input
+                          type="number"
+                          class="form-field"
+                          style="width: 90px;"
+                          :min="nodeSizeLimits.height.min"
+                          :max="nodeSizeLimits.height.max"
+                          :value="getNodeSizeSliderValue(selected.item, 'height')"
+                          @input="updateNodeSize('height', $event.target.value, { commit: false })"
+                          @change="updateNodeSize('height', $event.target.value, { forceCommit: true })"
+                        >
+                      </div>
                     </label>
                   </div>
                   <template v-if="selected.item.shape === 'cylinder'">
@@ -1315,16 +1413,83 @@
                         <div class="inspector-slider">
                           <input
                             type="range"
-                            min="4"
-                            max="6"
+                            min="2"
+                            max="12"
                             step="1"
                             :value="Number(selected.item.rectangleSplitParts ?? 4)"
                             @input="updateRectangleSplitParts($event.target.value, { commit: false })"
                             @change="updateRectangleSplitParts($event.target.value, { forceCommit: true })"
                           >
-                          <span>{{ Number(selected.item.rectangleSplitParts ?? 4) }}</span>
+                          <input
+                            type="number"
+                            class="form-field"
+                            style="width: 90px;"
+                            min="2"
+                            max="12"
+                            :value="Number(selected.item.rectangleSplitParts ?? 4)"
+                            @input="updateRectangleSplitParts($event.target.value, { commit: false })"
+                            @change="updateRectangleSplitParts($event.target.value, { forceCommit: true })"
+                          >
                         </div>
                       </label>
+                    </div>
+                    <div
+                      v-if="selected.item.rectangleSplitCells && selected.item.rectangleSplitCells.length"
+                      class="rectangle-split-cells"
+                    >
+                      <div
+                        class="rectangle-split-cell"
+                        v-for="(cell, index) in selected.item.rectangleSplitCells"
+                        :key="cell.id || index"
+                      >
+                        <header class="rectangle-split-cell__header">
+                          <h4>Part {{ index + 1 }}</h4>
+                        </header>
+                        <label class="inspector-field">
+                          <span>Text</span>
+                          <textarea
+                            class="inspector-textarea"
+                            rows="2"
+                            :value="cell.text"
+                            @input="updateRectangleSplitCellText(index, $event.target.value, { commit: false })"
+                            @change="updateRectangleSplitCellText(index, $event.target.value, { forceCommit: true })"
+                          ></textarea>
+                        </label>
+                        <div class="inspector-grid">
+                          <label class="inspector-field">
+                            <span>Fill</span>
+                            <input
+                              type="color"
+                              :value="cell.fill || selected.item.color || '#f8fafc'"
+                              @input="updateRectangleSplitCellFill(index, $event.target.value, { commit: false })"
+                              @change="updateRectangleSplitCellFill(index, $event.target.value, { forceCommit: true })"
+                            >
+                            <button
+                              type="button"
+                              class="btn btn-ghost mt-2"
+                              @click="updateRectangleSplitCellFill(index, null, { forceCommit: true })"
+                            >
+                              Clear fill
+                            </button>
+                          </label>
+                          <label class="inspector-field">
+                            <span>Text color</span>
+                            <input
+                              type="color"
+                              :value="cell.textColor || selected.item.borderColor || '#0f172a'"
+                              @input="updateRectangleSplitCellTextColor(index, $event.target.value, { commit: false })"
+                              @change="updateRectangleSplitCellTextColor(index, $event.target.value, { forceCommit: true })"
+                            >
+                            <button
+                              type="button"
+                              class="btn btn-ghost mt-2"
+                              @click="updateRectangleSplitCellTextColor(index, null, { forceCommit: true })"
+                            >
+                              Clear text color
+                            </button>
+                          </label>
+                        </div>
+                      </div>
                     </div>
                   </template>
                   <div class="inspector-actions">
@@ -1338,6 +1503,129 @@
                       Paste formatting
                     </button>
                     <button type="button" class="btn btn-ghost danger" @click="removeSelected">Remove node</button>
+                  </div>
+                </div>
+              </section>
+
+              <section
+                class="sidebar-panel"
+                v-else-if="selected && selected.type === 'text'"
+              >
+                <header><h2>Edit text</h2></header>
+                <div class="panel-content inspector-content">
+                  <label class="inspector-field">
+                    <span>Content</span>
+                    <textarea
+                      class="inspector-textarea"
+                      rows="6"
+                      v-model="selected.item.text"
+                      @input="invalidateTikz"
+                      @change="commitHistory"
+                    ></textarea>
+                  </label>
+                  <div class="inspector-grid">
+                    <label class="inspector-field">
+                      <span>Font size</span>
+                      <div class="inspector-slider">
+                        <input
+                          type="range"
+                          min="10"
+                          max="72"
+                          step="1"
+                          :value="selected.item.fontSize"
+                          @input="updateTextFontSize($event.target.value, { commit: false })"
+                          @change="updateTextFontSize($event.target.value, { forceCommit: true })"
+                        >
+                        <span>{{ Math.round(Number(selected.item.fontSize ?? 16)) }} px</span>
+                      </div>
+                    </label>
+                    <label class="inspector-field">
+                      <span>Text color</span>
+                      <input
+                        type="color"
+                        :value="selected.item.color || defaultTextColor"
+                        @input="applyTextColor($event.target.value, { commit: false })"
+                        @change="applyTextColor($event.target.value, { forceCommit: true })"
+                      >
+                    </label>
+                  </div>
+                  <label class="inspector-field">
+                    <span>Show background</span>
+                    <div>
+                      <input
+                        type="checkbox"
+                        :checked="selected.item.showBackground !== false"
+                        @change="setTextBackgroundEnabled($event.target.checked, { forceCommit: true })"
+                      >
+                    </div>
+                  </label>
+                  <div class="inspector-grid">
+                    <label class="inspector-field">
+                      <span>Background color</span>
+                      <input
+                        type="color"
+                        :disabled="selected.item.showBackground === false"
+                        :value="selected.item.fillColor || '#f8fafc'"
+                        @input="updateTextFillColor($event.target.value, { commit: false })"
+                        @change="updateTextFillColor($event.target.value, { forceCommit: true })"
+                      >
+                    </label>
+                    <label class="inspector-field">
+                      <span>Border color</span>
+                      <input
+                        type="color"
+                        :value="selected.item.borderColor || '#94a3b8'"
+                        @input="updateTextBorderColor($event.target.value, { commit: false })"
+                        @change="updateTextBorderColor($event.target.value, { forceCommit: true })"
+                      >
+                    </label>
+                  </div>
+                  <div class="inspector-grid">
+                    <label class="inspector-field">
+                      <span>Border width</span>
+                      <div class="inspector-slider">
+                        <input
+                          type="range"
+                          min="0"
+                          max="8"
+                          step="0.5"
+                          :value="selected.item.borderWidth ?? 2"
+                          @input="updateTextBorderWidth($event.target.value, { commit: false })"
+                          @change="updateTextBorderWidth($event.target.value, { forceCommit: true })"
+                        >
+                        <span>{{ Number(selected.item.borderWidth ?? 2).toFixed(1) }} px</span>
+                      </div>
+                    </label>
+                    <label class="inspector-field">
+                      <span>Border style</span>
+                      <select
+                        class="form-field"
+                        :value="selected.item.borderStyle || 'solid'"
+                        @change="updateTextBorderStyle($event.target.value, { forceCommit: true })"
+                      >
+                        <option value="solid">Solid</option>
+                        <option value="dashed">Dashed</option>
+                        <option value="dotted">Dotted</option>
+                      </select>
+                    </label>
+                  </div>
+                  <label class="inspector-field">
+                    <span>Opacity</span>
+                    <div class="inspector-slider">
+                      <input
+                        type="range"
+                        min="10"
+                        max="100"
+                        step="5"
+                        :value="Math.round((selected.item.opacity ?? 1) * 100)"
+                        @input="updateTextOpacity($event.target.value, { commit: false })"
+                        @change="updateTextOpacity($event.target.value, { forceCommit: true })"
+                      >
+                      <span>{{ Math.round((selected.item.opacity ?? 1) * 100) }}%</span>
+                    </div>
+                  </label>
+                  <div class="inspector-actions">
+                    <button type="button" class="btn btn-ghost danger" @click="removeSelected">Remove text</button>
                   </div>
                 </div>
               </section>
@@ -1500,7 +1788,7 @@
                         min="1"
                         max="8"
                         step="0.5"
-                        :value="selected.item.thickness ?? edgeThickness"
+                        :value="selected.item.thickness ?? 2.5"
                         @input="updateSelectedLineThickness($event.target.value, { commit: false })"
                         @change="updateSelectedLineThickness($event.target.value, { forceCommit: true })"
                       >
@@ -1508,7 +1796,7 @@
                         {{
                           selected.item.thickness
                             ? Number(selected.item.thickness).toFixed(1) + ' px'
-                            : 'Default: ' + edgeThicknessDisplay
+                            : 'Default: 2.5 px'
                         }}
                       </span>
                     </div>

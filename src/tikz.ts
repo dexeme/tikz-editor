@@ -6,13 +6,40 @@ import {
   normalizeNodeParameters,
 } from './shapes/index.js';
 import { mapPort, resolveBendShape, resolveOrthogonalTikz, isCurvedShape } from './routingMaps.js';
-import { isNodeInsideFrame } from './utils/sceneMetrics.js';
+import { isNodeInsideFrame, formatCm, pxToCm, PX_TO_CM } from './utils/sceneMetrics.js';
 import { findShapeAnchor } from './shapes/anchorRegistry.js';
 import { registerBuiltInShapes } from './shapes/definitions.js';
 
 registerBuiltInShapes();
 
-const SCALE = 0.05;
+const TEXT_BLOCK_PADDING = 14;
+const TEXT_BLOCK_CORNER_RADIUS = 12;
+const RECTANGLE_SPLIT_PART_NAMES = ['two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+
+const formatCoordinate = (value) => {
+  const cm = value * PX_TO_CM;
+  const normalized = Math.abs(cm) < 1e-4 ? 0 : Number(cm.toFixed(2));
+  return normalized.toString();
+};
+
+const formatPixelLength = (value, digits = 2) => {
+  const formatted = formatCm(value, digits);
+  return formatted || '0cm';
+};
+
+const formatFontSizePt = value => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return null;
+  }
+  const pt = numeric * 0.75;
+  const size = Number(pt.toFixed(1));
+  if (!Number.isFinite(size) || size <= 0) {
+    return null;
+  }
+  const baseline = Number((size * 1.2).toFixed(1));
+  return { size, baseline };
+};
 
 const resolveTikzAnchor = (node, anchorId) => {
   if (!anchorId) {
@@ -55,10 +82,24 @@ const isPointInsideFrame = (point, frame) => {
   return x >= frameX && x <= frameRight && y >= frameY && y <= frameBottom;
 };
 
+const isBlockInsideFrame = (block, frame) => {
+  if (!frame) return true;
+  if (!block || !Number.isFinite(block.width) || !Number.isFinite(block.height)) {
+    return false;
+  }
+  const topLeftInside = isPointInsideFrame({ x: block.x, y: block.y }, frame);
+  const bottomRightInside = isPointInsideFrame(
+    { x: block.x + block.width, y: block.y + block.height },
+    frame
+  );
+  return topLeftInside && bottomRightInside;
+};
+
 export function generateTikzDocument(
   nodes,
   edges,
   lines = [],
+  textBlocks = [],
   matrixGrids = [],
   frame = null,
   options = {}
@@ -75,13 +116,7 @@ export function generateTikzDocument(
   const edgeLabelAlignment = alignmentCandidates.has(options.edgeLabelAlignment)
     ? options.edgeLabelAlignment
     : 'right';
-  const formatShift = value => {
-    if (!Number.isFinite(value)) {
-      return '0cm';
-    }
-    const normalized = Math.abs(value) < 1e-4 ? 0 : Number(value.toFixed(2));
-    return `${normalized}cm`;
-  };
+  const formatShift = value => formatPixelLength(value);
 
   const registerColor = hex => {
     if (!hex) return null;
@@ -138,6 +173,28 @@ export function generateTikzDocument(
         }))
         .filter(line => isPointInsideFrame(line.start, frame) && isPointInsideFrame(line.end, frame))
     : [];
+  let textIdSequence = 1;
+  const filteredTextBlocks = Array.isArray(textBlocks)
+    ? textBlocks
+        .map(block => {
+          const xValue = Number(block?.x);
+          const yValue = Number(block?.y);
+          const widthValue = Number(block?.width);
+          const heightValue = Number(block?.height);
+          const fontSizeValue = Number(block?.fontSize);
+          return {
+            id: typeof block?.id === 'string' ? block.id : `text-block-${textIdSequence++}`,
+            x: Number.isFinite(xValue) ? xValue : 0,
+            y: Number.isFinite(yValue) ? yValue : 0,
+            width: Number.isFinite(widthValue) && widthValue > 0 ? widthValue : 200,
+            height: Number.isFinite(heightValue) && heightValue > 0 ? heightValue : 120,
+            text: block?.text != null ? String(block.text) : '',
+            fontSize: Number.isFinite(fontSizeValue) && fontSizeValue > 0 ? fontSizeValue : 16,
+            color: typeof block?.color === 'string' && block.color.trim() ? block.color.trim() : null,
+          };
+        })
+        .filter(block => isBlockInsideFrame(block, frame))
+    : [];
   const matrixBlocks = Array.isArray(matrixGrids)
     ? matrixGrids
         .map(grid => {
@@ -183,6 +240,42 @@ export function generateTikzDocument(
   filteredNodes.forEach(node => {
     const normalizedNode = normalizeNodeParameters(node);
 
+    let labelOverride = null;
+    const extraShapeOptions = [];
+
+    if (node.shape === 'rectangle split' && Array.isArray(node.rectangleSplitCells)) {
+      const cells = node.rectangleSplitCells;
+      const fillEntries = [];
+      const segments = [];
+      cells.forEach((cell, index) => {
+        const rawText = cell?.text != null ? String(cell.text) : '';
+        const formattedText = formatNodeLabel(rawText) || '\\,';
+        const textColorName = cell?.textColor ? registerColor(cell.textColor) : null;
+        const coloredText = textColorName
+          ? `\\textcolor{${textColorName}}{${formattedText}}`
+          : formattedText;
+        if (index === 0) {
+          segments.push(coloredText);
+        } else {
+          const partName = RECTANGLE_SPLIT_PART_NAMES[index - 1] || `part${index + 1}`;
+          segments.push(`\\nodepart{${partName}}${coloredText}`);
+        }
+        if (cell?.fill) {
+          const fillName = registerColor(cell.fill);
+          fillEntries.push(fillName || 'none');
+        } else {
+          fillEntries.push('');
+        }
+      });
+      if (segments.length) {
+        labelOverride = segments.join('');
+      }
+      if (fillEntries.some(entry => entry)) {
+        const normalizedFills = fillEntries.map(entry => entry || 'none');
+        extraShapeOptions.push(`rectangle split part fill={${normalizedFills.join(', ')}}`);
+      }
+    }
+
     if (normalizedNode.shape === 'rectangle') {
       if (!normalizedNode.flags.hasExplicitLineWidth) {
         normalizedNode.lineWidth = null;
@@ -221,16 +314,82 @@ export function generateTikzDocument(
     const optionSegments = [
       ...styleResult.prefix,
       ...shapeResult.options,
+      ...extraShapeOptions,
       ...styleResult.suffix,
     ].filter(Boolean);
 
-    const x = (node.x * SCALE).toFixed(2);
-    const y = (-node.y * SCALE).toFixed(2);
+    const x = formatCoordinate(node.x);
+    const y = formatCoordinate(-node.y);
 
-    body += `    \\node[${optionSegments.join(', ')}] (${node.id}) at (${x},${y}) {${formatNodeLabel(normalizedNode.label)}};\n`;
+    const labelContent =
+      labelOverride != null ? labelOverride : formatNodeLabel(normalizedNode.label);
+    body += `    \\node[${optionSegments.join(', ')}] (${node.id}) at (${x},${y}) {${labelContent}};\n`;
   });
 
   if (filteredEdges.length || filteredLines.length) {
+    body += '\n';
+  }
+
+  if (filteredTextBlocks.length) {
+    if (!body.endsWith('\n\n')) {
+      body += '\n';
+    }
+    filteredTextBlocks.forEach(block => {
+      const textWidthPx = Math.max(block.width - TEXT_BLOCK_PADDING * 2, 1);
+      const textWidthOption = formatPixelLength(textWidthPx, 2);
+      const fontSpec = formatFontSizePt(block.fontSize);
+      const roundedCorner = formatPixelLength(TEXT_BLOCK_CORNER_RADIUS, 2);
+      const paddingOption = formatPixelLength(TEXT_BLOCK_PADDING, 2);
+      const styleOptions = [
+        'rectangle',
+        `rounded corners=${roundedCorner}`,
+        'align=left',
+        'anchor=north west',
+        `text width=${textWidthOption}`,
+        `inner sep=${paddingOption}`,
+        `minimum width=${formatPixelLength(block.width, 2)}`,
+        `minimum height=${formatPixelLength(block.height, 2)}`,
+      ];
+      const borderStyle = block.borderStyle === 'dashed'
+        ? 'dashed'
+        : block.borderStyle === 'dotted'
+          ? 'dotted'
+          : null;
+      if (borderStyle) {
+        styleOptions.push(borderStyle);
+      }
+      if (fontSpec) {
+        styleOptions.push(`font=\\fontsize{${fontSpec.size}}{${fontSpec.baseline}}\\selectfont`);
+      }
+      if (block.color) {
+        const colorName = registerColor(block.color);
+        if (colorName) {
+          styleOptions.push(`text=${colorName}`);
+        }
+      }
+      const fillName = block.showBackground === false ? null : registerColor(block.fillColor);
+      if (fillName) {
+        styleOptions.push(`fill=${fillName}`);
+      } else {
+        styleOptions.push('fill=none');
+      }
+      const borderWidthValue = Number(block.borderWidth);
+      const borderColorName = registerColor(block.borderColor);
+      if (Number.isFinite(borderWidthValue) && borderWidthValue > 0) {
+        styleOptions.push(borderColorName ? `draw=${borderColorName}` : 'draw');
+        styleOptions.push(`line width=${(borderWidthValue * 0.6).toFixed(2)}pt`);
+      } else {
+        styleOptions.push('draw=none');
+      }
+      const blockOpacity = Number(block.opacity);
+      if (Number.isFinite(blockOpacity) && blockOpacity > 0 && blockOpacity < 1) {
+        styleOptions.push(`opacity=${Math.min(1, Math.max(0.05, blockOpacity)).toFixed(2)}`);
+      }
+      const x = formatCoordinate(block.x);
+      const y = formatCoordinate(-block.y);
+      const content = formatNodeLabel(block.text);
+      body += `    \\node[${styleOptions.join(', ')}] (${block.id}) at (${x},${y}) {${content}};\n`;
+    });
     body += '\n';
   }
 
@@ -303,13 +462,15 @@ export function generateTikzDocument(
     }
     if (labelAlignment === 'auto' && Array.isArray(edge.label?.offset)) {
       const [offsetX, offsetY] = edge.label.offset;
-      const shiftX = Number((offsetX * SCALE).toFixed(2));
-      const shiftY = Number((-offsetY * SCALE).toFixed(2));
-      if (shiftX) {
-        labelOptions.push(`xshift=${shiftX}cm`);
+      const shiftXCm = pxToCm(offsetX);
+      const shiftYCm = pxToCm(offsetY);
+      const normalizedShiftX = Number.isFinite(shiftXCm) ? Number(shiftXCm.toFixed(2)) : 0;
+      const normalizedShiftY = Number.isFinite(shiftYCm) ? Number((-shiftYCm).toFixed(2)) : 0;
+      if (normalizedShiftX) {
+        labelOptions.push(`xshift=${normalizedShiftX}cm`);
       }
-      if (shiftY) {
-        labelOptions.push(`yshift=${shiftY}cm`);
+      if (normalizedShiftY) {
+        labelOptions.push(`yshift=${normalizedShiftY}cm`);
       }
     }
     const labelSegment = hasLabelText
@@ -342,10 +503,10 @@ export function generateTikzDocument(
       parts.push(lineWidthOption);
     }
     const optionsClause = parts.length ? `[${parts.join(', ')}]` : '';
-    const startX = (line.start.x * SCALE).toFixed(2);
-    const startY = (-line.start.y * SCALE).toFixed(2);
-    const endX = (line.end.x * SCALE).toFixed(2);
-    const endY = (-line.end.y * SCALE).toFixed(2);
+    const startX = formatCoordinate(line.start.x);
+    const startY = formatCoordinate(-line.start.y);
+    const endX = formatCoordinate(line.end.x);
+    const endY = formatCoordinate(-line.end.y);
     body += `    \\draw${optionsClause} (${startX},${startY}) -- (${endX},${endY});\n`;
   });
 
@@ -354,20 +515,20 @@ export function generateTikzDocument(
   }
 
   matrixBlocks.forEach((grid, index) => {
-    const shiftX = formatShift(grid.x * SCALE);
-    const shiftY = formatShift(-grid.y * SCALE);
-    const cellScaleValue = Number((grid.cellSize * SCALE).toFixed(2));
-    if (!cellScaleValue) {
+    const shiftX = formatShift(grid.x);
+    const shiftY = formatShift(-grid.y);
+    const cellSizeCm = pxToCm(grid.cellSize);
+    if (!Number.isFinite(cellSizeCm) || cellSizeCm <= 0) {
       return;
     }
-    const cellToken = cellScaleValue.toFixed(2);
+    const cellToken = Number(cellSizeCm.toFixed(2)).toString();
     body += `    \\begin{scope}[shift={(${shiftX},${shiftY})}]\n`;
     grid.data.forEach((row, rowIndex) => {
       row.forEach((value, colIndex) => {
         const key = String(value);
         const colorName = registerColor(grid.colorMap[key]) || 'black';
-        const x = (colIndex * cellScaleValue).toFixed(2);
-        const y = (-(rowIndex + 1) * cellScaleValue).toFixed(2);
+        const x = Number((colIndex * cellSizeCm).toFixed(2)).toString();
+        const y = Number((-(rowIndex + 1) * cellSizeCm).toFixed(2)).toString();
         body += `      \\fill[${colorName}] (${x},${y}) rectangle ++(${cellToken},${cellToken});\n`;
       });
     });

@@ -3,7 +3,7 @@
 import { rounding } from '../core.js';
 import { registerShape } from '../registry.js';
 import { registerShapeAnchors } from '../anchorRegistry.js';
-import { getNodeDimensions } from '../../utils/sceneMetrics.js';
+import { getNodeDimensions, resolveNodeSize, formatCm } from '../../utils/sceneMetrics.js';
 
 const ALIGN_CENTER = 'align=center';
 
@@ -193,6 +193,9 @@ export function registerRectangle() {
     const options = ['rectangle'];
     const flags = params?.flags ?? {};
     const radius = Number.isFinite(params?.cornerRadius) ? params.cornerRadius : 16;
+    const size = resolveNodeSize(params?.raw);
+    const minimumWidth = formatCm(size.width) || '1cm';
+    const minimumHeight = formatCm(size.height) || '1cm';
 
     if (flags.hasExplicitCornerRadius) {
       options.push(`rounded corners=${rounding(Math.max(0, radius))}pt`);
@@ -214,8 +217,8 @@ export function registerRectangle() {
       options.push('fill=cyan!15'); // Default rectangle fill
     }
 
-    options.push('minimum width=6cm'); // Rectangle minimum width
-    options.push('minimum height=2.5cm'); // Rectangle minimum height
+    options.push(`minimum width=${minimumWidth}`);
+    options.push(`minimum height=${minimumHeight}`);
     options.push('inner sep=12pt'); // Rectangle inner padding
     options.push('outer sep=5pt'); // Rectangle outer spacing
     options.push(ALIGN_CENTER);

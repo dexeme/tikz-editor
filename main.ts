@@ -15,23 +15,117 @@ import {
   DEFAULT_CYLINDER_MIN_WIDTH_CM,
   DEFAULT_CYLINDER_MIN_HEIGHT_CM,
   DEFAULT_CYLINDER_ASPECT,
+  getDefaultNodeSize,
+  resolveNodeSize,
 } from './src/utils/sceneMetrics.js';
 import { generateTikzDocument } from './src/tikz.js';
 
-const defaultNode = shape => ({
-  label: 'New node',
-  color: '#f8fafc',
-  borderColor: '#94a3b8',
-  shape: shape || 'circle',
-  fontSize: '16',
-  borderWidth: 3,
-  cornerRadius: 16,
-});
+const defaultNode = shape => {
+  const resolvedShape = shape || 'circle';
+  const defaultSize = getDefaultNodeSize(resolvedShape);
+  return {
+    label: 'New node',
+    color: '#f8fafc',
+    borderColor: '#94a3b8',
+    shape: resolvedShape,
+    size: { width: defaultSize.width, height: defaultSize.height },
+    fontSize: '16',
+    borderWidth: 3,
+    borderStyle: 'solid',
+    cornerRadius: 16,
+    rectangleSplitCells: [],
+  };
+};
+
+const NODE_SIZE_LIMITS = {
+  width: { min: 20, max: 720 },
+  height: { min: 20, max: 720 },
+};
+
+const TEXT_BLOCK_DEFAULT_WIDTH = 260;
+const TEXT_BLOCK_DEFAULT_HEIGHT = 160;
+const TEXT_FONT_SIZE_LIMITS = { min: 10, max: 72 };
+const TEXT_BLOCK_BORDER_WIDTH_DEFAULT = 2;
+const TEXT_BLOCK_BORDER_STYLE_DEFAULT = 'solid';
+const TEXT_BLOCK_OPACITY_RANGE = { min: 0.1, max: 1 };
+const RECTANGLE_SPLIT_MIN_PARTS = 2;
+const RECTANGLE_SPLIT_MAX_PARTS = 12;
+
+function clampNodeSize(value, dimension) {
+  const limits = dimension === 'height' ? NODE_SIZE_LIMITS.height : NODE_SIZE_LIMITS.width;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return limits.min;
+  }
+  return Math.min(limits.max, Math.max(limits.min, numeric));
+}
+
+function coerceSizeValue(value, fallback) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return fallback;
+  }
+  return numeric;
+}
+
+function parseNumericPrefix(value, fallback = null) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : fallback;
+  }
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return fallback;
+  }
+  const match = trimmed.match(/^(-?\d*\.?\d+)/);
+  if (!match) {
+    return fallback;
+  }
+  const numeric = Number(match[1]);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function normalizeNodeSizeForShape(size, shape) {
+  const defaults = getDefaultNodeSize(shape);
+  let width;
+  let height;
+  if (typeof size === 'number') {
+    width = size;
+    height = size;
+  } else if (size && typeof size === 'object') {
+    width = coerceSizeValue(size.width, null);
+    height = coerceSizeValue(size.height, null);
+    if (width == null && height != null) {
+      width = height;
+    } else if (height == null && width != null) {
+      height = width;
+    }
+  }
+  if (width == null) {
+    width = defaults.width;
+  }
+  if (height == null) {
+    height = defaults.height;
+  }
+  if (shape === 'circle') {
+    const diameter = clampNodeSize(Math.max(width, height), 'width');
+    return { width: diameter, height: diameter };
+  }
+  return {
+    width: clampNodeSize(width, 'width'),
+    height: clampNodeSize(height, 'height'),
+  };
+}
 
 function applyShapeDefaults(node) {
   if (!node) {
     return;
   }
+
+  const shape = typeof node.shape === 'string' ? node.shape : 'circle';
+  node.size = normalizeNodeSizeForShape(node.size, shape);
 
   if (node.shape === 'rectangle') {
     if (!node.color || node.color === '#f8fafc') {
@@ -56,7 +150,7 @@ function applyShapeDefaults(node) {
   }
 
   if (node.shape === 'rectangle split') {
-    node.rectangleSplitParts = clampRectangleSplitParts(node.rectangleSplitParts);
+    ensureRectangleSplitCells(node);
     return;
   }
 
@@ -83,9 +177,19 @@ function applyShapeDefaults(node) {
   node.aspect = Number.isFinite(rawAspect) && rawAspect > 0 ? rawAspect : 0.35;
 
   const minimumHeight = typeof node.minimumHeight === 'string' ? node.minimumHeight.trim() : '';
-  node.minimumHeight = minimumHeight || '1.8cm';
+  const parsedHeight = parseNumericPrefix(minimumHeight, null);
+  if (!minimumHeight || (Number.isFinite(parsedHeight) && Math.abs(parsedHeight - 1.8) < 0.05)) {
+    node.minimumHeight = '1.2cm';
+  } else {
+    node.minimumHeight = minimumHeight;
+  }
   const minimumWidth = typeof node.minimumWidth === 'string' ? node.minimumWidth.trim() : '';
-  node.minimumWidth = minimumWidth || '1.6cm';
+  const parsedWidth = parseNumericPrefix(minimumWidth, null);
+  if (!minimumWidth || (Number.isFinite(parsedWidth) && Math.abs(parsedWidth - 1.6) < 0.05)) {
+    node.minimumWidth = '5.6cm';
+  } else {
+    node.minimumWidth = minimumWidth;
+  }
   node.innerXsep = ensureTrimmed(node.innerXsep);
   node.innerYsep = ensureTrimmed(node.innerYsep);
 
@@ -124,8 +228,43 @@ const clampRectangleSplitParts = value => {
   if (!Number.isFinite(numeric)) {
     return RECTANGLE_SPLIT_DEFAULT_PARTS;
   }
-  return Math.min(6, Math.max(4, Math.round(numeric)));
+  return Math.min(
+    RECTANGLE_SPLIT_MAX_PARTS,
+    Math.max(RECTANGLE_SPLIT_MIN_PARTS, Math.round(numeric))
+  );
 };
+
+function ensureRectangleSplitCells(node) {
+  if (!node || node.shape !== 'rectangle split') {
+    return;
+  }
+  const parts = clampRectangleSplitParts(node.rectangleSplitParts);
+  const existing = Array.isArray(node.rectangleSplitCells) ? node.rectangleSplitCells : [];
+  const cells = [];
+  for (let index = 0; index < parts; index += 1) {
+    const current = existing[index] || {};
+    const textFallback =
+      typeof current.text === 'string'
+        ? current.text
+        : index === 0 && typeof node.label === 'string'
+          ? node.label
+          : '';
+    cells.push({
+      id: typeof current.id === 'string' ? current.id : `rectangle-split-${index + 1}`,
+      text: textFallback,
+      fill: typeof current.fill === 'string' && current.fill.trim() ? current.fill.trim() : null,
+      textColor:
+        typeof current.textColor === 'string' && current.textColor.trim()
+          ? current.textColor.trim()
+          : null,
+    });
+  }
+  node.rectangleSplitParts = parts;
+  node.rectangleSplitCells = cells;
+  if (cells[0] && typeof cells[0].text === 'string') {
+    node.label = cells[0].text;
+  }
+}
 
 function makeNode(x, y, shape) {
   return normalizeNode({
@@ -224,6 +363,10 @@ function normalizeNode(node = {}) {
   if (!normalized.borderColor) {
     normalized.borderColor = '#94a3b8';
   }
+  const allowedBorderStyles = new Set(['solid', 'dashed', 'dotted']);
+  if (!allowedBorderStyles.has(normalized.borderStyle)) {
+    normalized.borderStyle = 'solid';
+  }
   if (!normalized.shape) {
     normalized.shape = 'circle';
   }
@@ -236,20 +379,67 @@ function normalizeNode(node = {}) {
   normalized.cornerRadius = Number.isFinite(cornerRadiusValue) && cornerRadiusValue >= 0
     ? Math.min(64, cornerRadiusValue)
     : 16;
+  const opacityValue = Number(normalized.opacity);
+  if (!Number.isFinite(opacityValue) || opacityValue < 0 || opacityValue > 1) {
+    delete normalized.opacity;
+  } else {
+    normalized.opacity = Number(opacityValue.toFixed(2));
+  }
   applyShapeDefaults(normalized);
   return normalized;
 }
 
-function makeTextBlock(x, y, width, height) {
+function makeTextBlock(x, y, width, height, options = {}) {
+  const normalizeString = (value, fallback) =>
+    typeof value === 'string' && value.trim() ? value : fallback;
+  const normalizeNumeric = (value, fallback) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : fallback;
+  };
+  const normalizeColor = value => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return trimmed || null;
+  };
+  const normalizeBoolean = value => {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true') return true;
+      if (normalized === 'false') return false;
+    }
+    return null;
+  };
+  const borderStyles = new Set(['solid', 'dashed', 'dotted']);
+  const normalizeOpacity = value => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return TEXT_BLOCK_OPACITY_RANGE.max;
+    }
+    return Math.min(TEXT_BLOCK_OPACITY_RANGE.max, Math.max(TEXT_BLOCK_OPACITY_RANGE.min, numeric));
+  };
+  const showBackground = normalizeBoolean(options.showBackground);
   return {
     id: `text-${textSequence++}`,
     x,
     y,
     width,
     height,
-    text: 'New text',
-    fontSize: 16,
-    fontWeight: 500,
+    text: normalizeString(options.text, 'New text'),
+    fontSize: normalizeNumeric(options.fontSize, 16),
+    fontWeight: normalizeNumeric(options.fontWeight, 500),
+    color: normalizeColor(options.color),
+    fillColor: normalizeColor(options.fillColor) || '#f8fafc',
+    borderColor: normalizeColor(options.borderColor) || '#94a3b8',
+    borderWidth: Math.max(
+      0.5,
+      normalizeNumeric(options.borderWidth, TEXT_BLOCK_BORDER_WIDTH_DEFAULT)
+    ),
+    borderStyle: borderStyles.has(options.borderStyle) ? options.borderStyle : TEXT_BLOCK_BORDER_STYLE_DEFAULT,
+    showBackground: showBackground == null ? true : showBackground,
+    opacity: normalizeOpacity(options.opacity ?? TEXT_BLOCK_OPACITY_RANGE.max),
   };
 }
 
@@ -485,11 +675,10 @@ createApp({
       paste: 'Paste formatting',
       remove: 'Remove edge',
     };
-    const fontSizeOptions = [
-      { value: '12', label: 'Small' },
-      { value: '16', label: 'Medium' },
-      { value: '20', label: 'Large' },
-    ];
+    const fontSizeOptions = ['12', '14', '16', '18', '20', '24', '28', '32', '36'].map(value => ({
+      value,
+      label: `${value} px`,
+    }));
     const nodeToolbarHint = computed(() => {
       if (nodeToolbarState.hoveredOption) {
         return nodeToolbarLabels[nodeToolbarState.hoveredOption] || '';
@@ -1286,6 +1475,71 @@ createApp({
       };
     }
 
+    function normalizeTextBlock(block = {}, options = {}) {
+      const fallbackColor =
+        typeof options.defaultColor === 'string' && options.defaultColor.trim()
+          ? options.defaultColor.trim()
+          : '#0f172a';
+      const widthValue = Number(block.width);
+      const heightValue = Number(block.height);
+      const fontSizeValue = Number(block.fontSize);
+      const fontWeightValue = Number(block.fontWeight);
+      const xValue = Number(block.x);
+      const yValue = Number(block.y);
+      const colorValue =
+        normalizeHex(typeof block.color === 'string' ? block.color : '') || fallbackColor;
+      const fillValue = normalizeHex(typeof block.fillColor === 'string' ? block.fillColor : '') || null;
+      const borderColorValue =
+        normalizeHex(typeof block.borderColor === 'string' ? block.borderColor : '') || '#94a3b8';
+      const borderWidthValue = Number(block.borderWidth);
+      const borderWidth =
+        Number.isFinite(borderWidthValue) && borderWidthValue >= 0
+          ? borderWidthValue
+          : TEXT_BLOCK_BORDER_WIDTH_DEFAULT;
+      const borderStyleOptions = new Set(['solid', 'dashed', 'dotted']);
+      const rawBorderStyle =
+        typeof block.borderStyle === 'string' ? block.borderStyle.toLowerCase().trim() : '';
+      const borderStyle = borderStyleOptions.has(rawBorderStyle)
+        ? rawBorderStyle
+        : TEXT_BLOCK_BORDER_STYLE_DEFAULT;
+      const opacityValue = Number(block.opacity);
+      const opacity = Number.isFinite(opacityValue)
+        ? Math.min(
+            TEXT_BLOCK_OPACITY_RANGE.max,
+            Math.max(TEXT_BLOCK_OPACITY_RANGE.min, opacityValue)
+          )
+        : TEXT_BLOCK_OPACITY_RANGE.max;
+      return {
+        id: typeof block.id === 'string' ? block.id : `text-${textSequence++}`,
+        x: Number.isFinite(xValue) ? xValue : 0,
+        y: Number.isFinite(yValue) ? yValue : 0,
+        width: Math.max(
+          TEXT_BLOCK_CONSTRAINTS.minWidth,
+          Number.isFinite(widthValue) && widthValue > 0 ? widthValue : TEXT_BLOCK_DEFAULT_WIDTH
+        ),
+        height: Math.max(
+          TEXT_BLOCK_CONSTRAINTS.minHeight,
+          Number.isFinite(heightValue) && heightValue > 0 ? heightValue : TEXT_BLOCK_DEFAULT_HEIGHT
+        ),
+        text: typeof block.text === 'string' ? block.text : '',
+        fontSize: Math.min(
+          TEXT_FONT_SIZE_LIMITS.max,
+          Math.max(
+            TEXT_FONT_SIZE_LIMITS.min,
+            Number.isFinite(fontSizeValue) && fontSizeValue > 0 ? fontSizeValue : 16
+          )
+        ),
+        fontWeight: Number.isFinite(fontWeightValue) ? fontWeightValue : 500,
+        color: colorValue,
+        fillColor: fillValue,
+        borderColor: borderColorValue,
+        borderWidth,
+        borderStyle,
+        showBackground: block.showBackground === false ? false : true,
+        opacity,
+      };
+    }
+
     function ensureCustomSwatch(type, color) {
       const normalized = normalizeHex(color);
       if (!normalized || !customSwatches[type]) {
@@ -1458,6 +1712,289 @@ createApp({
       }
     }
 
+    function updateNodeBorderStyle(style, options = {}) {
+      const nodes = selectedNodes.value;
+      if (!nodes.length) {
+        return;
+      }
+      const allowed = new Set(['solid', 'dashed', 'dotted']);
+      const normalized = allowed.has(style) ? style : 'solid';
+      let changed = false;
+      nodes.forEach(node => {
+        if (node.borderStyle !== normalized) {
+          node.borderStyle = normalized;
+          changed = true;
+        }
+      });
+      if ((options.commit !== false && changed) || options.forceCommit) {
+        pushHistory();
+      }
+      if (changed) {
+        renderer.value?.draw();
+        invalidateTikz();
+      }
+    }
+
+    function updateNodeOpacity(value, options = {}) {
+      const nodes = selectedNodes.value;
+      if (!nodes.length) {
+        return;
+      }
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) {
+        return;
+      }
+      const ratio = Math.min(100, Math.max(0, numeric)) / 100;
+      const normalized = Math.min(1, Math.max(0, ratio));
+      let changed = false;
+      nodes.forEach(node => {
+        const currentOpacity = Number.isFinite(Number(node.opacity)) ? Number(node.opacity) : 1;
+        if (Math.abs(currentOpacity - normalized) > 0.01) {
+          if (normalized >= 0.99) {
+            delete node.opacity;
+          } else {
+            node.opacity = Number(normalized.toFixed(2));
+          }
+          changed = true;
+        }
+      });
+      if ((options.commit !== false && changed) || options.forceCommit) {
+        pushHistory();
+      }
+      if (changed) {
+        renderer.value?.draw();
+        invalidateTikz();
+      }
+    }
+
+    function getNodeSizePx(node, dimension) {
+      if (!node) {
+        return 0;
+      }
+      const size = resolveNodeSize(node);
+      if (dimension === 'height') {
+        return Number(size.height) || 0;
+      }
+      return Number(size.width) || 0;
+    }
+
+    function getNodeSizeSliderValue(node, dimension) {
+      const value = getNodeSizePx(node, dimension);
+      return Math.round(Number.isFinite(value) ? value : 0);
+    }
+
+    function updateNodeSize(dimension, value, options = {}) {
+      const nodes = selectedNodes.value;
+      if (!nodes.length) {
+        return;
+      }
+      if (
+        value == null ||
+        (typeof value === 'string' && value.trim() === '')
+      ) {
+        return;
+      }
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) {
+        return;
+      }
+      const clamped = clampNodeSize(numeric, dimension);
+      let changed = false;
+      nodes.forEach(node => {
+        const normalizedSize = normalizeNodeSizeForShape(node.size, node.shape);
+        if (node.shape === 'circle') {
+          if (normalizedSize.width !== clamped || normalizedSize.height !== clamped) {
+            node.size = { width: clamped, height: clamped };
+            changed = true;
+          }
+          return;
+        }
+        if (normalizedSize[dimension] !== clamped) {
+          normalizedSize[dimension] = clamped;
+          node.size = { width: normalizedSize.width, height: normalizedSize.height };
+          changed = true;
+        }
+      });
+      if ((options.commit !== false && changed) || options.forceCommit) {
+        pushHistory();
+      }
+    }
+
+    function updateTextFontSize(value, options = {}) {
+      const current = state.selected;
+      if (!current || current.type !== 'text' || !current.item) {
+        return;
+      }
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) {
+        return;
+      }
+      const clamped = Math.min(
+        TEXT_FONT_SIZE_LIMITS.max,
+        Math.max(TEXT_FONT_SIZE_LIMITS.min, numeric)
+      );
+      if (current.item.fontSize !== clamped) {
+        current.item.fontSize = clamped;
+        if (options.commit !== false || options.forceCommit) {
+          pushHistory();
+        }
+        renderer.value?.draw();
+      } else if (options.forceCommit) {
+        pushHistory();
+      }
+      invalidateTikz();
+    }
+
+    function applyTextColor(color, options = {}) {
+      const current = state.selected;
+      if (!current || current.type !== 'text' || !current.item) {
+        return;
+      }
+      const normalized = normalizeHex(color);
+      if (!normalized) {
+        return;
+      }
+      if (current.item.color !== normalized) {
+        current.item.color = normalized;
+        if (options.commit !== false || options.forceCommit) {
+          pushHistory();
+        }
+        renderer.value?.draw();
+      } else if (options.forceCommit) {
+        pushHistory();
+      }
+      invalidateTikz();
+    }
+
+    function setTextBackgroundEnabled(enabled, options = {}) {
+      const current = state.selected;
+      if (!current || current.type !== 'text' || !current.item) {
+        return;
+      }
+      const nextValue = Boolean(enabled);
+      if (current.item.showBackground === nextValue) {
+        if (options.forceCommit) {
+          pushHistory();
+        }
+        return;
+      }
+      current.item.showBackground = nextValue;
+      if (options.commit !== false || options.forceCommit) {
+        pushHistory();
+      }
+      renderer.value?.draw();
+      invalidateTikz();
+    }
+
+    function updateTextFillColor(color, options = {}) {
+      const current = state.selected;
+      if (!current || current.type !== 'text' || !current.item) {
+        return;
+      }
+      const normalized = normalizeHex(color);
+      if (!normalized) {
+        return;
+      }
+      if (current.item.fillColor !== normalized) {
+        current.item.fillColor = normalized;
+        if (options.commit !== false || options.forceCommit) {
+          pushHistory();
+        }
+        renderer.value?.draw();
+        invalidateTikz();
+      } else if (options.forceCommit) {
+        pushHistory();
+      }
+    }
+
+    function updateTextBorderColor(color, options = {}) {
+      const current = state.selected;
+      if (!current || current.type !== 'text' || !current.item) {
+        return;
+      }
+      const normalized = normalizeHex(color);
+      if (!normalized) {
+        return;
+      }
+      if (current.item.borderColor !== normalized) {
+        current.item.borderColor = normalized;
+        if (options.commit !== false || options.forceCommit) {
+          pushHistory();
+        }
+        renderer.value?.draw();
+        invalidateTikz();
+      } else if (options.forceCommit) {
+        pushHistory();
+      }
+    }
+
+    function updateTextBorderWidth(value, options = {}) {
+      const current = state.selected;
+      if (!current || current.type !== 'text' || !current.item) {
+        return;
+      }
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) {
+        return;
+      }
+      const clamped = Math.max(0, Math.min(8, numeric));
+      if (current.item.borderWidth !== clamped) {
+        current.item.borderWidth = clamped;
+        if (options.commit !== false || options.forceCommit) {
+          pushHistory();
+        }
+        renderer.value?.draw();
+        invalidateTikz();
+      } else if (options.forceCommit) {
+        pushHistory();
+      }
+    }
+
+    function updateTextBorderStyle(style, options = {}) {
+      const current = state.selected;
+      if (!current || current.type !== 'text' || !current.item) {
+        return;
+      }
+      const allowed = new Set(['solid', 'dashed', 'dotted']);
+      const normalized = allowed.has(style) ? style : TEXT_BLOCK_BORDER_STYLE_DEFAULT;
+      if (current.item.borderStyle !== normalized) {
+        current.item.borderStyle = normalized;
+        if (options.commit !== false || options.forceCommit) {
+          pushHistory();
+        }
+        renderer.value?.draw();
+        invalidateTikz();
+      } else if (options.forceCommit) {
+        pushHistory();
+      }
+    }
+
+    function updateTextOpacity(value, options = {}) {
+      const current = state.selected;
+      if (!current || current.type !== 'text' || !current.item) {
+        return;
+      }
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) {
+        return;
+      }
+      const ratio = Math.min(100, Math.max(10, numeric)) / 100;
+      const normalized = Math.min(
+        TEXT_BLOCK_OPACITY_RANGE.max,
+        Math.max(TEXT_BLOCK_OPACITY_RANGE.min, ratio)
+      );
+      if (Math.abs((current.item.opacity ?? TEXT_BLOCK_OPACITY_RANGE.max) - normalized) > 0.01) {
+        current.item.opacity = Number(normalized.toFixed(2));
+        if (options.commit !== false || options.forceCommit) {
+          pushHistory();
+        }
+        renderer.value?.draw();
+        invalidateTikz();
+      } else if (options.forceCommit) {
+        pushHistory();
+      }
+    }
+
     function updateRectangleSplitParts(value, options = {}) {
       const nodes = selectedNodes.value;
       if (!nodes.length) {
@@ -1466,16 +2003,116 @@ createApp({
       const clamped = clampRectangleSplitParts(value);
       let changed = false;
       nodes.forEach(node => {
+        if (node.shape !== 'rectangle split') {
+          return;
+        }
         const previous = clampRectangleSplitParts(node.rectangleSplitParts);
         if (previous !== clamped) {
           node.rectangleSplitParts = clamped;
+          changed = true;
+        }
+        ensureRectangleSplitCells(node);
+      });
+      if ((options.commit !== false && changed) || options.forceCommit) {
+        pushHistory();
+      }
+      if (changed) {
+        renderer.value?.draw();
+        invalidateTikz();
+      }
+    }
+
+    function updateRectangleSplitCellText(index, value, options = {}) {
+      const nodes = selectedNodes.value.filter(node => node.shape === 'rectangle split');
+      if (!nodes.length) {
+        return;
+      }
+      const targetIndex = Math.max(0, Math.floor(Number(index)));
+      const textValue = typeof value === 'string' ? value : '';
+      let changed = false;
+      nodes.forEach(node => {
+        ensureRectangleSplitCells(node);
+        const cell = node.rectangleSplitCells?.[targetIndex];
+        if (!cell) {
+          return;
+        }
+        if (cell.text !== textValue) {
+          cell.text = textValue;
+          if (targetIndex === 0) {
+            node.label = textValue;
+          }
           changed = true;
         }
       });
       if ((options.commit !== false && changed) || options.forceCommit) {
         pushHistory();
       }
-      renderer.value?.draw();
+      if (changed) {
+        renderer.value?.draw();
+        invalidateTikz();
+      }
+    }
+
+    function updateRectangleSplitCellFill(index, color, options = {}) {
+      const nodes = selectedNodes.value.filter(node => node.shape === 'rectangle split');
+      if (!nodes.length) {
+        return;
+      }
+      const targetIndex = Math.max(0, Math.floor(Number(index)));
+      const normalized = color == null ? null : normalizeHex(color);
+      if (color != null && !normalized) {
+        return;
+      }
+      let changed = false;
+      nodes.forEach(node => {
+        ensureRectangleSplitCells(node);
+        const cell = node.rectangleSplitCells?.[targetIndex];
+        if (!cell) {
+          return;
+        }
+        if (cell.fill !== normalized) {
+          cell.fill = normalized;
+          changed = true;
+        }
+      });
+      if ((options.commit !== false && changed) || options.forceCommit) {
+        pushHistory();
+      }
+      if (changed) {
+        renderer.value?.draw();
+        invalidateTikz();
+      }
+    }
+
+    function updateRectangleSplitCellTextColor(index, color, options = {}) {
+      const nodes = selectedNodes.value.filter(node => node.shape === 'rectangle split');
+      if (!nodes.length) {
+        return;
+      }
+      const targetIndex = Math.max(0, Math.floor(Number(index)));
+      const normalized = color == null ? null : normalizeHex(color);
+      if (color != null && !normalized) {
+        return;
+      }
+      let changed = false;
+      nodes.forEach(node => {
+        ensureRectangleSplitCells(node);
+        const cell = node.rectangleSplitCells?.[targetIndex];
+        if (!cell) {
+          return;
+        }
+        if (cell.textColor !== normalized) {
+          cell.textColor = normalized;
+          changed = true;
+        }
+      });
+      if ((options.commit !== false && changed) || options.forceCommit) {
+        pushHistory();
+      }
+      if (changed) {
+        renderer.value?.draw();
+        invalidateTikz();
+      }
     }
 
     function setNodeFontSize(size) {
@@ -1506,7 +2143,12 @@ createApp({
         if (node.shape !== shape) {
           node.shape = shape;
           applyShapeDefaults(node);
+          if (shape === 'rectangle split') {
+            ensureRectangleSplitCells(node);
+          }
           changed = true;
+        } else if (shape === 'rectangle split') {
+          ensureRectangleSplitCells(node);
         }
       });
       if (changed) {
@@ -1517,25 +2159,6 @@ createApp({
     const DEFAULT_CYLINDER_INNER_SEP_PT = 1;
 
     const clampValue = (value, min, max) => Math.min(max, Math.max(min, value));
-
-    function parseNumericPrefix(value, fallback = null) {
-      if (typeof value === 'number') {
-        return Number.isFinite(value) ? value : fallback;
-      }
-      if (typeof value !== 'string') {
-        return fallback;
-      }
-      const trimmed = value.trim();
-      if (!trimmed) {
-        return fallback;
-      }
-      const match = trimmed.match(/^(-?\d*\.?\d+)/);
-      if (!match) {
-        return fallback;
-      }
-      const numeric = Number(match[1]);
-      return Number.isFinite(numeric) ? numeric : fallback;
-    }
 
     function formatNumeric(value, digits = 1) {
       if (!Number.isFinite(value)) {
@@ -1731,6 +2354,8 @@ createApp({
           borderWidth: Number(node.borderWidth) || 3,
           fontSize: String(node.fontSize || '16'),
           cornerRadius: Number(node.cornerRadius) || 16,
+          borderStyle: node.borderStyle || 'solid',
+          opacity: Number.isFinite(Number(node.opacity)) ? Number(node.opacity) : null,
         };
         flash('Node formatting copied.');
         return;
@@ -1777,6 +2402,9 @@ createApp({
         const borderWidth = Number(payload.borderWidth);
         const cornerRadius = Number(payload.cornerRadius);
         const fontSize = payload.fontSize ? String(payload.fontSize) : null;
+        const borderStyle =
+          typeof payload.borderStyle === 'string' ? payload.borderStyle : 'solid';
+        const opacityValue = Number(payload.opacity);
         nodes.forEach(node => {
           if (fillColor && node.color !== fillColor) {
             node.color = fillColor;
@@ -1807,6 +2435,22 @@ createApp({
           if (fontSize && node.fontSize !== fontSize) {
             node.fontSize = fontSize;
             changed = true;
+          }
+          if (borderStyle && node.borderStyle !== borderStyle) {
+            node.borderStyle = borderStyle;
+            changed = true;
+          }
+          if (Number.isFinite(opacityValue)) {
+            const normalizedOpacity = Math.min(1, Math.max(0, opacityValue));
+            if (normalizedOpacity >= 0.99) {
+              if (node.opacity != null) {
+                delete node.opacity;
+                changed = true;
+              }
+            } else if (node.opacity !== normalizedOpacity) {
+              node.opacity = Number(normalizedOpacity.toFixed(2));
+              changed = true;
+            }
           }
         });
         if (fillColor) {
@@ -2290,7 +2934,9 @@ createApp({
         ? payload.lines.map(line => normalizeLine({ ...line }))
         : [];
       const textBlocks = Array.isArray(payload.textBlocks)
-        ? payload.textBlocks.map(block => ({ ...block }))
+        ? payload.textBlocks.map(block =>
+            normalizeTextBlock({ ...block }, { defaultColor: defaultTextColor.value })
+          )
         : [];
       const matrixGrids = Array.isArray(payload.matrixGrids)
         ? payload.matrixGrids
@@ -2346,6 +2992,9 @@ createApp({
 
     const mode = computed(() => state.mode);
     const selected = computed(() => state.selected);
+    const defaultTextColor = computed(() =>
+      state.theme === 'dark' ? '#e2e8f0' : '#0f172a'
+    );
 
     const previewZoomLevel = computed(() => Math.max(1, Math.round(preview.scale * 100)));
     const previewStageStyle = computed(() => {
@@ -2856,6 +3505,7 @@ createApp({
         state.nodes,
         state.edges,
         state.lines,
+        state.textBlocks,
         state.matrixGrids,
         state.frame,
         {
@@ -3338,6 +3988,57 @@ createApp({
       createNodeAtCenter(shapeId, { ...options, position });
     }
 
+    function createTextBlock(options = {}) {
+      closeFormsMenu();
+      closeDiagramMenu();
+      const target =
+        options.position || state.pointer || getViewportCenterWorld();
+      const width = Math.max(
+        TEXT_BLOCK_CONSTRAINTS.minWidth,
+        Number(options.width) || TEXT_BLOCK_DEFAULT_WIDTH
+      );
+      const height = Math.max(
+        TEXT_BLOCK_CONSTRAINTS.minHeight,
+        Number(options.height) || TEXT_BLOCK_DEFAULT_HEIGHT
+      );
+      const color =
+        typeof options.color === 'string' && options.color.trim()
+          ? options.color.trim()
+          : defaultTextColor.value;
+      const fillColor =
+        typeof options.fillColor === 'string' && options.fillColor.trim()
+          ? options.fillColor.trim()
+          : state.theme === 'dark'
+            ? '#1f2937'
+            : '#f8fafc';
+      const borderColor =
+        typeof options.borderColor === 'string' && options.borderColor.trim()
+          ? options.borderColor.trim()
+          : '#94a3b8';
+      const block = makeTextBlock(
+        target.x - width / 2,
+        target.y - height / 2,
+        width,
+        height,
+        {
+          color,
+          fillColor,
+          borderColor,
+          borderStyle: options.borderStyle,
+          borderWidth: options.borderWidth,
+          showBackground: options.showBackground ?? true,
+          opacity: options.opacity ?? TEXT_BLOCK_OPACITY_RANGE.max,
+        }
+      );
+      state.textBlocks = [...state.textBlocks, block];
+      setSelected({ type: 'text', item: block });
+      pushHistory();
+      renderer.value?.draw();
+      invalidateTikz();
+      flash(options.message || 'Text block added. Double-click to edit the content.');
+      return block;
+    }
+
     function selectShape(shapeId, options = {}) {
       if (!shapeId) {
         return;
@@ -3393,7 +4094,9 @@ createApp({
       state.lines = Array.isArray(template.lines)
         ? template.lines.map(line => normalizeLine({ ...line }))
         : [];
-      state.textBlocks = (template.textBlocks || []).map(block => ({ ...block }));
+      state.textBlocks = (template.textBlocks || []).map(block =>
+        normalizeTextBlock({ ...block }, { defaultColor: defaultTextColor.value })
+      );
       state.matrixGrids = (template.matrixGrids || []).map(grid =>
         normalizeMatrixGrid({ ...grid })
       );
@@ -3578,6 +4281,10 @@ createApp({
           fontSize: node.fontSize,
           cornerRadius: node.cornerRadius,
           shape: node.shape,
+          size: (() => {
+            const { width, height } = resolveNodeSize(node);
+            return { width, height };
+          })(),
         }));
         const nodeIds = new Set(nodes.map(node => node.id));
         const edgePayload = state.edges
@@ -3610,7 +4317,7 @@ createApp({
         }
         return true;
       }
-      if (selection.type === 'text' && selection.item) {
+        if (selection.type === 'text' && selection.item) {
         const block = selection.item;
         clipboard.value = {
           type: 'text',
@@ -3623,6 +4330,13 @@ createApp({
             text: block.text,
             fontSize: block.fontSize,
             fontWeight: block.fontWeight,
+            color: block.color,
+            fillColor: block.fillColor,
+            borderColor: block.borderColor,
+            borderWidth: block.borderWidth,
+            borderStyle: block.borderStyle,
+            showBackground: block.showBackground,
+            opacity: block.opacity,
           },
         };
         if (!options?.silent) {
@@ -3685,6 +4399,9 @@ createApp({
           node.borderWidth = nodeData.borderWidth;
           node.fontSize = nodeData.fontSize;
           node.cornerRadius = nodeData.cornerRadius;
+          if (nodeData.size) {
+            node.size = normalizeNodeSizeForShape(nodeData.size, node.shape);
+          }
           createdNodes.push(node);
           idMap.set(nodeData.sourceId || nodeData.id || node.id, node.id);
         });
@@ -3729,16 +4446,26 @@ createApp({
 
       if (payload.type === 'text' && payload.block) {
         const blockData = payload.block;
-        const newBlock = {
-          id: `text-${textSequence++}`,
-          x: blockData.x + offsetX,
-          y: blockData.y + offsetY,
-          width: blockData.width ?? TEXT_BLOCK_CONSTRAINTS.minWidth,
-          height: blockData.height ?? TEXT_BLOCK_CONSTRAINTS.minHeight,
-          text: blockData.text ?? '',
-          fontSize: blockData.fontSize ?? 16,
-          fontWeight: blockData.fontWeight ?? 500,
-        };
+        const newBlock = normalizeTextBlock(
+          {
+            id: `text-${textSequence++}`,
+            x: blockData.x + offsetX,
+            y: blockData.y + offsetY,
+            width: blockData.width,
+            height: blockData.height,
+            text: blockData.text,
+            fontSize: blockData.fontSize,
+            fontWeight: blockData.fontWeight,
+            color: blockData.color,
+            fillColor: blockData.fillColor,
+            borderColor: blockData.borderColor,
+            borderWidth: blockData.borderWidth,
+            borderStyle: blockData.borderStyle,
+            showBackground: blockData.showBackground,
+            opacity: blockData.opacity,
+          },
+          { defaultColor: defaultTextColor.value }
+        );
         state.textBlocks = [...state.textBlocks, newBlock];
         setSelected({ type: 'text', item: newBlock });
         pushHistory();
@@ -4939,7 +5666,9 @@ createApp({
       state.nodes = snap.nodes.map(node => normalizeNode({ ...node }));
       state.edges = snap.edges.map(edge => normalizeEdge({ ...edge }));
       state.lines = (snap.lines || []).map(line => normalizeLine({ ...line }));
-      state.textBlocks = snap.textBlocks.map(block => ({ ...block }));
+      state.textBlocks = snap.textBlocks.map(block =>
+        normalizeTextBlock({ ...block }, { defaultColor: defaultTextColor.value })
+      );
       state.matrixGrids = (snap.matrixGrids || []).map(grid =>
         normalizeMatrixGrid({ ...grid })
       );
@@ -5388,9 +6117,27 @@ createApp({
       addCustomColor,
       updateNodeBorderWidth,
       updateNodeCornerRadius,
+      updateNodeBorderStyle,
+      updateNodeOpacity,
+      nodeSizeLimits: NODE_SIZE_LIMITS,
+      getNodeSizeSliderValue,
+      updateNodeSize,
       updateRectangleSplitParts,
+      updateRectangleSplitCellText,
+      updateRectangleSplitCellFill,
+      updateRectangleSplitCellTextColor,
       setNodeFontSize,
       setNodeShape,
+      createTextBlock,
+      updateTextFontSize,
+      applyTextColor,
+      setTextBackgroundEnabled,
+      updateTextFillColor,
+      updateTextBorderColor,
+      updateTextBorderWidth,
+      updateTextBorderStyle,
+      updateTextOpacity,
+      defaultTextColor,
       updateCylinderRotate,
       updateCylinderBorderRotate,
       getCylinderMinimumHeightValue,

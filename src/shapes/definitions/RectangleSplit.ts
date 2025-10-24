@@ -2,8 +2,7 @@
 
 import { registerShape } from '../registry.js';
 import { registerShapeAnchors } from '../anchorRegistry.js';
-import { getNodeDimensions } from '../../utils/sceneMetrics.js';
-import { createSimpleShape } from '../core.js';
+import { getNodeDimensions, resolveNodeSize, formatCm } from '../../utils/sceneMetrics.js';
 
 const ALIGN_CENTER = 'align=center';
 const toRadians = degrees => (degrees * Math.PI) / 180;
@@ -362,11 +361,16 @@ export function registerRectangleSplit() {
   registerShape('rectangle split', params => {
     const raw = params?.raw ?? {};
     const parts = clampParts(raw.rectangleSplitParts);
+    const size = resolveNodeSize(raw);
+    const minimumWidth = formatCm(size.width) || '5cm';
+    const minimumHeight = formatCm(size.height) || '3cm';
     const options = [
       'rectangle split',
       `rectangle split parts=${parts}`,
       ALIGN_CENTER,
     ];
+    options.push(`minimum width=${minimumWidth}`);
+    options.push(`minimum height=${minimumHeight}`);
     return {
       options,
       libraries: ['shapes.multipart'],

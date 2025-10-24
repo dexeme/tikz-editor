@@ -1,9 +1,8 @@
 // @ts-nocheck
 
-import { createSimpleShape } from '../core.js';
 import { registerShape } from '../registry.js';
 import { registerShapeAnchors } from '../anchorRegistry.js';
-import { getNodeDimensions } from '../../utils/sceneMetrics.js';
+import { getNodeDimensions, resolveNodeSize, formatCm } from '../../utils/sceneMetrics.js';
 
 const ALIGN_CENTER = 'align=center';
 const toRadians = degrees => (degrees * Math.PI) / 180;
@@ -155,9 +154,14 @@ const diamondAnchors = [
 ];
 
 export function registerDiamond() {
-  registerShape(
-    'diamond',
-    createSimpleShape(['diamond', 'aspect=2', ALIGN_CENTER], ['shapes.geometric'])
-  );
+  registerShape('diamond', params => {
+    const size = resolveNodeSize(params?.raw);
+    const minimumWidth = formatCm(size.width) || '4cm';
+    const minimumHeight = formatCm(size.height) || '3cm';
+    return {
+      options: ['diamond', `minimum width=${minimumWidth}`, `minimum height=${minimumHeight}`, ALIGN_CENTER],
+      libraries: ['shapes.geometric'],
+    };
+  });
   registerShapeAnchors('diamond', diamondAnchors);
 }

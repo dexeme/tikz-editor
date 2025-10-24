@@ -26,6 +26,7 @@ const SUPPORTED_NODE_KEYS = new Set([
   'draw',
   'borderColor',
   'borderWidth',
+  'borderStyle',
   'lineWidth',
   'cornerRadius',
   'opacity',
@@ -45,6 +46,7 @@ const SUPPORTED_NODE_KEYS = new Set([
   'cylinderEndFill',
   'cylinderBodyFill',
   'rectangleSplitParts',
+  'rectangleSplitCells',
 ]);
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -100,6 +102,17 @@ const normalizeSize = value => {
     };
   }
   return null;
+};
+
+const normalizeBorderStyle = value => {
+  if (typeof value !== 'string') {
+    return 'solid';
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'dashed' || normalized === 'dotted') {
+    return normalized;
+  }
+  return 'solid';
 };
 
 function sanitizeShapeName(rawName) {
@@ -202,6 +215,7 @@ export function normalizeNodeParameters(node = {}) {
     'borderWidth',
     DEFAULTS.lineWidth
   );
+  const borderStyle = normalizeBorderStyle(node.borderStyle);
   const { value: cornerRadius, explicit: hasExplicitCornerRadius } = pickCornerRadius(node);
   const { value: fontSize, explicit: hasExplicitFontSize } = pickFontSize(node);
   const opacity = hasOwn(node, 'opacity') ? coerceOpacity(node.opacity) : null;
@@ -217,6 +231,7 @@ export function normalizeNodeParameters(node = {}) {
     fill: resolvedFill,
     draw,
     lineWidth,
+    borderStyle,
     cornerRadius,
     fontSize,
     opacity,
@@ -243,6 +258,10 @@ export function buildStyleOptions(normalized, { registerColor }) {
 
   const strokeColorName = normalized.draw ? registerColor(normalized.draw) : null;
   prefix.push(strokeColorName ? `draw=${strokeColorName}` : 'draw');
+
+  if (normalized.borderStyle === 'dashed' || normalized.borderStyle === 'dotted') {
+    prefix.push(normalized.borderStyle);
+  }
 
   if (normalized.fill) {
     const fillColorName = registerColor(normalized.fill);

@@ -1,9 +1,8 @@
 // @ts-nocheck
 
-import { createSimpleShape } from '../core.js';
 import { registerShape } from '../registry.js';
 import { registerShapeAnchors } from '../anchorRegistry.js';
-import { getNodeDimensions } from '../../utils/sceneMetrics.js';
+import { getNodeDimensions, resolveNodeSize, formatCm } from '../../utils/sceneMetrics.js';
 
 const ALIGN_CENTER = 'align=center';
 const toRadians = degrees => (degrees * Math.PI) / 180;
@@ -174,10 +173,14 @@ const semicircleAnchors = [
 ];
 
 export function registerSemicircle() {
-  registerShape(
-    'semicircle',
-    createSimpleShape(['semicircle', ALIGN_CENTER], ['shapes.geometric'])
-  );
+  registerShape('semicircle', params => {
+    const size = resolveNodeSize(params?.raw);
+    const minimumWidth = formatCm(size.width) || '4cm';
+    const minimumHeight = formatCm(size.height) || '2cm';
+    return {
+      options: ['semicircle', `minimum width=${minimumWidth}`, `minimum height=${minimumHeight}`, ALIGN_CENTER],
+      libraries: ['shapes.geometric'],
+    };
+  });
   registerShapeAnchors('semicircle', semicircleAnchors);
 }
-
