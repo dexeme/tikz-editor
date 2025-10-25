@@ -2,7 +2,7 @@
 
 import { registerShape } from '../registry.js';
 import { registerShapeAnchors } from '../anchorRegistry.js';
-import { getNodeDimensions, resolveNodeSize, formatCm } from '../../utils/sceneMetrics.js';
+import { getNodeDimensions, getDefaultNodeSize, formatCm } from '../../utils/sceneMetrics.js';
 
 const ALIGN_CENTER = 'align=center';
 
@@ -56,10 +56,10 @@ const decisionAnchors = [
 ];
 
 export function registerDecision() {
-  registerShape('decision', params => {
-    const size = resolveNodeSize(params?.raw);
-    const minimumWidth = formatCm(size.width) || '4cm';
-    const minimumHeight = formatCm(size.height) || '3cm';
+  registerShape('decision', () => {
+    const defaults = getDefaultNodeSize('decision');
+    const minimumWidth = formatCm(defaults.width) || '4cm';
+    const minimumHeight = formatCm(defaults.height) || '3cm';
     return {
       options: [
         'regular polygon',

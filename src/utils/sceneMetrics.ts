@@ -71,6 +71,22 @@ export function getDefaultNodeSize(shape: unknown) {
   );
 }
 
+const hasExplicitSize = (node: Record<string, unknown> | null | undefined) => {
+  if (!node) {
+    return false;
+  }
+  const { size } = node as Record<string, unknown>;
+  if (typeof size === 'number') {
+    return Number.isFinite(size) && size > 0;
+  }
+  if (!size || typeof size !== 'object') {
+    return false;
+  }
+  const width = sanitizePositive((size as Record<string, unknown>).width);
+  const height = sanitizePositive((size as Record<string, unknown>).height);
+  return width != null || height != null;
+};
+
 export function resolveNodeSize(node: Record<string, unknown> | null | undefined) {
   const fallback = getDefaultNodeSize(node?.shape);
   if (!node) {
@@ -203,17 +219,32 @@ export function getCylinderMetrics(node = {}) {
 }
 
 export function getNodeDimensions(node) {
-  if (node?.shape === 'circle') {
-    const size = resolveNodeSize(node);
-    const radius = Math.max(size.width, size.height) / 2;
-    return { halfWidth: radius, halfHeight: radius };
-  }
   if (node?.shape === 'cylinder') {
+    if (hasExplicitSize(node)) {
+      const size = resolveNodeSize(node);
+      return {
+        halfWidth: size.width / 2,
+        halfHeight: size.height / 2,
+      };
+    }
     const metrics = getCylinderMetrics(node);
     return { halfWidth: metrics.halfWidth, halfHeight: metrics.halfHeight };
   }
-  const size = resolveNodeSize(node);
-  return { halfWidth: size.width / 2, halfHeight: size.height / 2 };
+  if (hasExplicitSize(node)) {
+    const size = resolveNodeSize(node);
+    return {
+      halfWidth: size.width / 2,
+      halfHeight: size.height / 2,
+    };
+  }
+  if (node?.shape === 'circle') {
+    const defaults = getDefaultNodeSize('circle');
+    const diameter = Math.max(defaults.width, defaults.height);
+    const radius = diameter / 2;
+    return { halfWidth: radius, halfHeight: radius };
+  }
+  const defaults = getDefaultNodeSize(node?.shape);
+  return { halfWidth: defaults.width / 2, halfHeight: defaults.height / 2 };
 }
 
 export function getNodeBounds(node) {

@@ -2,7 +2,7 @@
 
 import { registerShape } from '../registry.js';
 import { registerShapeAnchors } from '../anchorRegistry.js';
-import { getNodeDimensions, resolveNodeSize, formatCm } from '../../utils/sceneMetrics.js';
+import { getNodeDimensions, getDefaultNodeSize, formatCm } from '../../utils/sceneMetrics.js';
 
 const ALIGN_CENTER = 'align=center';
 const toRadians = degrees => (degrees * Math.PI) / 180;
@@ -152,11 +152,11 @@ const roundedRectangleAnchors = [
 export function registerRoundedRectangle() {
   registerShape(
     'rounded rectangle',
-    params => {
+    () => {
       const options = ['rounded rectangle'];
-      const size = resolveNodeSize(params?.raw);
-      const minimumWidth = formatCm(size.width) || '4.5cm';
-      const minimumHeight = formatCm(size.height) || '2.0cm';
+      const defaults = getDefaultNodeSize('rounded rectangle');
+      const minimumWidth = formatCm(defaults.width) || '4.5cm';
+      const minimumHeight = formatCm(defaults.height) || '2.0cm';
       options.push('rounded corners=15pt');
       options.push(`minimum width=${minimumWidth}`);
       options.push(`minimum height=${minimumHeight}`);

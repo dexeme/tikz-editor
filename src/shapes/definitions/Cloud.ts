@@ -69,7 +69,7 @@
 
 import { registerShape } from '../registry.js';
 import { registerShapeAnchors } from '../anchorRegistry.js';
-import { getNodeDimensions, resolveNodeSize, formatCm } from '../../utils/sceneMetrics.js';
+import { getNodeDimensions, getDefaultNodeSize, formatCm } from '../../utils/sceneMetrics.js';
 
 const ALIGN_CENTER = 'align=center';
 
@@ -196,10 +196,10 @@ const cloudAnchors = [
 ];
 
 export function registerCloud() {
-  registerShape('cloud', params => {
-    const size = resolveNodeSize(params?.raw);
-    const minimumWidth = formatCm(size.width) || '4cm';
-    const minimumHeight = formatCm(size.height) || '2.5cm';
+  registerShape('cloud', () => {
+    const defaults = getDefaultNodeSize('cloud');
+    const minimumWidth = formatCm(defaults.width) || '4cm';
+    const minimumHeight = formatCm(defaults.height) || '2.5cm';
     return {
       options: ['cloud', 'cloud puffs=18', `minimum width=${minimumWidth}`, `minimum height=${minimumHeight}`, ALIGN_CENTER],
       libraries: ['shapes.symbols'],

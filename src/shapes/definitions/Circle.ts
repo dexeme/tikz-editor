@@ -2,7 +2,7 @@
 
 import { registerShape } from '../registry.js';
 import { registerShapeAnchors } from '../anchorRegistry.js';
-import { getNodeDimensions, resolveNodeSize, formatCm } from '../../utils/sceneMetrics.js';
+import { getNodeDimensions, getDefaultNodeSize, formatCm } from '../../utils/sceneMetrics.js';
 
 const ALIGN_CENTER = 'align=center';
 const toRadians = degrees => (degrees * Math.PI) / 180;
@@ -139,9 +139,9 @@ const circleAnchors = [
 ];
 
 export function registerCircle() {
-  registerShape('circle', params => {
-    const size = resolveNodeSize(params?.raw);
-    const diameter = Math.max(size.width, size.height);
+  registerShape('circle', () => {
+    const defaults = getDefaultNodeSize('circle');
+    const diameter = Math.max(defaults.width, defaults.height);
     const minimumSize = formatCm(diameter) || '3cm';
     return {
       options: ['circle', `minimum size=${minimumSize}`, 'shape aspect=1', ALIGN_CENTER],

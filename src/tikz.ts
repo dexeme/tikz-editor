@@ -6,7 +6,14 @@ import {
   normalizeNodeParameters,
 } from './shapes/index.js';
 import { mapPort, resolveBendShape, resolveOrthogonalTikz, isCurvedShape } from './routingMaps.js';
-import { isNodeInsideFrame, formatCm, pxToCm, PX_TO_CM } from './utils/sceneMetrics.js';
+import {
+  isNodeInsideFrame,
+  formatCm,
+  pxToCm,
+  PX_TO_CM,
+  resolveNodeSize,
+  getDefaultNodeSize,
+} from './utils/sceneMetrics.js';
 import { findShapeAnchor } from './shapes/anchorRegistry.js';
 import { registerBuiltInShapes } from './shapes/definitions.js';
 
@@ -28,6 +35,19 @@ const formatCoordinate = (value) => {
 const formatPixelLength = (value, digits = 2) => {
   const formatted = formatCm(value, digits);
   return formatted || '0cm';
+};
+
+const SCALE_EPSILON = 1e-3;
+const formatScaleOption = (scale, axis) => {
+  if (!Number.isFinite(scale) || scale <= 0 || Math.abs(scale - 1) < SCALE_EPSILON) {
+    return null;
+  }
+  const rounded = Number(scale.toFixed(4));
+  if (!Number.isFinite(rounded) || rounded <= 0) {
+    return null;
+  }
+  const normalized = rounded.toString().replace(/\.?0+$/, '');
+  return `${axis}scale=${normalized}`;
 };
 
 const formatFontSizePt = value => {
@@ -355,9 +375,28 @@ export function generateTikzDocument(
     });
     shapeResult.libraries.forEach(lib => libraries.add(lib));
 
+    const actualSize = resolveNodeSize(node);
+    const defaultSize = getDefaultNodeSize(normalizedNode.shape);
+    const scaleOptions = [];
+    if (defaultSize?.width > 0 && actualSize?.width > 0) {
+      const xScaleValue = actualSize.width / defaultSize.width;
+      const option = formatScaleOption(xScaleValue, 'x');
+      if (option) {
+        scaleOptions.push(option);
+      }
+    }
+    if (defaultSize?.height > 0 && actualSize?.height > 0) {
+      const yScaleValue = actualSize.height / defaultSize.height;
+      const option = formatScaleOption(yScaleValue, 'y');
+      if (option) {
+        scaleOptions.push(option);
+      }
+    }
+
     const optionSegments = [
       ...styleResult.prefix,
       ...shapeResult.options,
+      ...scaleOptions,
       ...extraShapeOptions,
       ...styleResult.suffix,
     ].filter(Boolean);

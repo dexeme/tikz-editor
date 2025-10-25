@@ -379,6 +379,7 @@ function normalizeNode(node = {}) {
   if (!normalized.shape) {
     normalized.shape = 'circle';
   }
+  normalized.size = normalizeNodeSizeForShape(normalized.size, normalized.shape);
   if (!normalized.fontSize) {
     normalized.fontSize = '16';
   }
@@ -1654,6 +1655,15 @@ createApp({
           changed = true;
         }
       });
+      if (!changed && !options.forceCommit) {
+        return;
+      }
+      if (!changed && !options.forceCommit) {
+        return;
+      }
+      if (!changed && !options.forceCommit) {
+        return;
+      }
       if ((options.commit !== false && changed) || options.forceCommit) {
         pushHistory();
       }
@@ -1859,6 +1869,10 @@ createApp({
       });
       if ((options.commit !== false && changed) || options.forceCommit) {
         pushHistory();
+      }
+      if (changed) {
+        renderer.value?.draw();
+        invalidateTikz();
       }
     }
 

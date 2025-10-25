@@ -2,7 +2,7 @@
 
 import { registerShape } from '../registry.js';
 import { registerShapeAnchors } from '../anchorRegistry.js';
-import { getNodeDimensions, resolveNodeSize, formatCm } from '../../utils/sceneMetrics.js';
+import { getNodeDimensions, getDefaultNodeSize, formatCm } from '../../utils/sceneMetrics.js';
 
 const ALIGN_CENTER = 'align=center';
 const toRadians = degrees => (degrees * Math.PI) / 180;
@@ -173,10 +173,10 @@ const triangleAnchors = [
 export function registerTriangle() {
   const WIDTH_FACTOR = Math.sqrt(3) / 2;
   const HEIGHT_FACTOR = 0.75;
-  registerShape('triangle', params => {
-    const size = resolveNodeSize(params?.raw);
-    const width = Math.max(size.width, 1);
-    const height = Math.max(size.height, 1);
+  registerShape('triangle', () => {
+    const defaults = getDefaultNodeSize('triangle');
+    const width = Math.max(defaults.width, 1);
+    const height = Math.max(defaults.height, 1);
     const minimumSizePx = width / WIDTH_FACTOR;
     const baseHeightPx = minimumSizePx * HEIGHT_FACTOR;
     const yscale = baseHeightPx > 0 ? height / baseHeightPx : 1;

@@ -1222,16 +1222,6 @@
                           @input="updateNodeSize('width', $event.target.value, { commit: false })"
                           @change="updateNodeSize('width', $event.target.value, { forceCommit: true })"
                         >
-                        <input
-                          type="number"
-                          class="form-field"
-                          style="width: 90px;"
-                          :min="nodeSizeLimits.width.min"
-                          :max="nodeSizeLimits.width.max"
-                          :value="getNodeSizeSliderValue(selected.item, 'width')"
-                          @input="updateNodeSize('width', $event.target.value, { commit: false })"
-                          @change="updateNodeSize('width', $event.target.value, { forceCommit: true })"
-                        >
                       </div>
                     </label>
                     <label
@@ -1249,17 +1239,36 @@
                           @input="updateNodeSize('height', $event.target.value, { commit: false })"
                           @change="updateNodeSize('height', $event.target.value, { forceCommit: true })"
                         >
-                        <input
-                          type="number"
-                          class="form-field"
-                          style="width: 90px;"
-                          :min="nodeSizeLimits.height.min"
-                          :max="nodeSizeLimits.height.max"
-                          :value="getNodeSizeSliderValue(selected.item, 'height')"
-                          @input="updateNodeSize('height', $event.target.value, { commit: false })"
-                          @change="updateNodeSize('height', $event.target.value, { forceCommit: true })"
-                        >
                       </div>
+                    </label>
+                  </div>
+                  <div class="inspector-grid">
+                    <label class="inspector-field">
+                      <span>Width (px)</span>
+                      <input
+                        type="number"
+                        class="form-field"
+                        :min="nodeSizeLimits.width.min"
+                        :max="nodeSizeLimits.width.max"
+                        :value="Math.round(selected.item.size?.width ?? nodeSizeLimits.width.min)"
+                        @input="updateNodeSize('width', $event.target.value, { commit: false })"
+                        @change="updateNodeSize('width', $event.target.value, { forceCommit: true })"
+                      >
+                    </label>
+                    <label
+                      class="inspector-field"
+                      v-if="selected.item.shape !== 'circle'"
+                    >
+                      <span>Height (px)</span>
+                      <input
+                        type="number"
+                        class="form-field"
+                        :min="nodeSizeLimits.height.min"
+                        :max="nodeSizeLimits.height.max"
+                        :value="Math.round(selected.item.size?.height ?? nodeSizeLimits.height.min)"
+                        @input="updateNodeSize('height', $event.target.value, { commit: false })"
+                        @change="updateNodeSize('height', $event.target.value, { forceCommit: true })"
+                      >
                     </label>
                   </div>
                   <template v-if="selected.item.shape === 'cylinder'">

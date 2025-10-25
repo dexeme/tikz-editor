@@ -687,16 +687,19 @@ export function createCanvasRenderer(canvas, state) {
     ctx.globalAlpha = 1;
 
     const fontSize = Number(node.fontSize) || 16;
+    const scaledFontSize = fontSize * scale;
     const lines = (node.label || 'Node').toString().split(/\n/);
-    const lineHeight = fontSize * 1.25;
+    const lineHeight = scaledFontSize * 1.25;
 
+    ctx.save();
+    ctx.scale(1 / scale, 1 / scale);
     ctx.fillStyle = '#0f172a';
-    ctx.font = `600 ${fontSize}px Inter, system-ui`;
+    ctx.font = `600 ${scaledFontSize}px Inter, system-ui`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
     const { halfWidth, halfHeight } = getNodeDimensions(node);
-    let maxTextWidth = Math.max(halfWidth * 2 - fontSize, 24);
+    let maxTextWidth = Math.max(halfWidth * 2 - fontSize, 24) * scale;
     let availableHeight = Math.max(halfHeight * 2 - fontSize * 0.5, lineHeight);
     if (node.shape === 'cylinder') {
       const metrics = getCylinderMetrics(node);
@@ -746,7 +749,7 @@ export function createCanvasRenderer(canvas, state) {
     const effectiveHeight = lineHeight * (Math.max(truncatedLines.length, 1) - 1);
     let offsetY = node.y - effectiveHeight / 2;
     truncatedLines.forEach(line => {
-      ctx.fillText(line, node.x, offsetY);
+      ctx.fillText(line, node.x * scale, offsetY * scale);
       offsetY += lineHeight;
     });
     ctx.restore();
@@ -789,9 +792,11 @@ export function createCanvasRenderer(canvas, state) {
   }
 
   function drawRectangleSplitLabels(node, metrics, cells) {
+    const scale = getCameraScale();
     const fontSize = Number(node.fontSize) || 16;
-    const lineHeight = fontSize * 1.25;
-    const maxTextWidth = Math.max(16, metrics.halfWidth * 2 - fontSize * 0.5);
+    const scaledFontSize = fontSize * scale;
+    const lineHeight = scaledFontSize * 1.25;
+    const maxTextWidth = Math.max(16, metrics.halfWidth * 2 - fontSize * 0.5) * scale;
     const maxLines = Math.max(1, Math.floor(metrics.partHeight / lineHeight));
 
     const truncateWithEllipsis = text => {
@@ -819,7 +824,8 @@ export function createCanvasRenderer(canvas, state) {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = `600 ${fontSize}px Inter, system-ui`;
+    ctx.scale(1 / scale, 1 / scale);
+    ctx.font = `600 ${scaledFontSize}px Inter, system-ui`;
 
     for (let index = 0; index < metrics.parts; index += 1) {
       const cell = cells[index] || {};
@@ -863,7 +869,7 @@ export function createCanvasRenderer(canvas, state) {
       let offsetY = metrics.top + metrics.partHeight * index + metrics.partHeight / 2 - totalHeight / 2;
       ctx.fillStyle = textColor;
       lines.forEach(line => {
-        ctx.fillText(line || '\u2009', node.x, offsetY);
+        ctx.fillText(line || '\u2009', node.x * scale, offsetY * scale);
         offsetY += lineHeight;
       });
     }
@@ -994,6 +1000,8 @@ export function createCanvasRenderer(canvas, state) {
 
   function drawTextBlock(block) {
     ctx.save();
+    ctx.globalAlpha = clampOpacity(block.opacity ?? 1);
+
     const scale = getCameraScale();
     const isSelected = state.selected?.item?.id === block.id;
     const palette = getThemePalette();
@@ -1003,13 +1011,10 @@ export function createCanvasRenderer(canvas, state) {
       : null;
     const borderColor = resolveColor(block.borderColor, palette.textBlockStroke);
     const borderWidth = Math.max(Number(block.borderWidth) || TEXT_BLOCK_BORDER_WIDTH_DEFAULT, 0);
-    const opacity = clampOpacity(block.opacity ?? 1);
     const dashPattern = resolveDashPattern(block.borderStyle, scale);
 
     const radius = 12;
     const path = roundedRectPath(block.x, block.y, block.width, block.height, radius);
-
-    ctx.globalAlpha = opacity;
     if (fillColor) {
       ctx.fillStyle = fillColor;
       ctx.fill(path);
@@ -1035,6 +1040,7 @@ export function createCanvasRenderer(canvas, state) {
     }
 
     ctx.save();
+    ctx.scale(1 / scale, 1 / scale);
     ctx.beginPath();
     ctx.rect(
       block.x + TEXT_BLOCK_PADDING,
@@ -1048,7 +1054,7 @@ export function createCanvasRenderer(canvas, state) {
       : palette.textBlockText;
     ctx.fillStyle = textColor;
     ctx.font = `${block.fontWeight || 500} ${block.fontSize || 16}px Inter, system-ui`;
-    ctx.textBaseline = 'top';
+    ctx.textBaseline = 'top'; // This is now relative to the unscaled context
     ctx.textAlign = 'left';
     drawWrappedText(block.text || '', block);
     ctx.restore();
@@ -1071,17 +1077,21 @@ export function createCanvasRenderer(canvas, state) {
 
   function drawEdgeLabel(edge, geometry) {
     ctx.save();
+    const scale = getCameraScale();
     const label = edge.label || {};
+    const fontSize = 15;
+    const scaledFontSize = fontSize * scale;
+    ctx.scale(1 / scale, 1 / scale);
     ctx.fillStyle = label.color || '#e2e8f0';
-    ctx.font = `500 15px Inter, system-ui`;
+    ctx.font = `500 ${scaledFontSize}px Inter, system-ui`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
     const labelPoint = geometry.labelPoint;
     const text = label?.text ?? '';
     const offsetX = label?.offset?.[0] ?? 0;
     const offsetY = label?.offset?.[1] ?? 0;
-    ctx.fillText(text, labelPoint.x + offsetX, labelPoint.y - 8 + offsetY);
-
+    ctx.fillText(text, (labelPoint.x + offsetX) * scale, (labelPoint.y - 8 + offsetY) * scale);
+    ctx.restore();
     if (state.selected?.type === 'edge' && state.selected?.item?.id === edge.id && text) {
       const metrics = ctx.measureText(text);
       const width = metrics.width;
@@ -1089,7 +1099,6 @@ export function createCanvasRenderer(canvas, state) {
       const cx = labelPoint.x + offsetX;
       const cy = labelPoint.y - 8 + offsetY - height / 2;
       const scale = getCameraScale();
-      const margin = 6 / scale;
       const handleSize = 8 / scale;
       ctx.save();
       ctx.beginPath();
@@ -1104,12 +1113,13 @@ export function createCanvasRenderer(canvas, state) {
       ctx.fill();
       ctx.restore();
     }
-    ctx.restore();
   }
 
   function drawWrappedText(text, block) {
-    const maxWidth = block.width - TEXT_BLOCK_PADDING * 2;
+    const scale = getCameraScale();
+    const maxWidth = (block.width - TEXT_BLOCK_PADDING * 2) * scale;
     const lines = [];
+    const scaledFontSize = (block.fontSize || 16) * scale;
     const rawLines = text.split(/\n/);
     rawLines.forEach(line => {
       const words = line.split(/\s+/);
@@ -1128,10 +1138,10 @@ export function createCanvasRenderer(canvas, state) {
       lines.push(current);
     });
 
-    const lineHeight = (block.fontSize || 16) * 1.4;
+    const lineHeight = scaledFontSize * 1.4;
     let y = block.y + TEXT_BLOCK_PADDING;
     lines.forEach(line => {
-      ctx.fillText(line, block.x + TEXT_BLOCK_PADDING, y);
+      ctx.fillText(line, (block.x + TEXT_BLOCK_PADDING) * scale, y * scale);
       y += lineHeight;
     });
   }

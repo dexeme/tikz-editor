@@ -3,7 +3,7 @@
 import { rounding } from '../core.js';
 import { registerShape } from '../registry.js';
 import { registerShapeAnchors } from '../anchorRegistry.js';
-import { getNodeDimensions, resolveNodeSize, formatCm } from '../../utils/sceneMetrics.js';
+import { getNodeDimensions, getDefaultNodeSize, formatCm } from '../../utils/sceneMetrics.js';
 
 const ALIGN_CENTER = 'align=center';
 
@@ -193,9 +193,9 @@ export function registerRectangle() {
     const options = ['rectangle'];
     const flags = params?.flags ?? {};
     const radius = Number.isFinite(params?.cornerRadius) ? params.cornerRadius : 16;
-    const size = resolveNodeSize(params?.raw);
-    const minimumWidth = formatCm(size.width) || '1cm';
-    const minimumHeight = formatCm(size.height) || '1cm';
+    const defaults = getDefaultNodeSize('rectangle');
+    const minimumWidth = formatCm(defaults.width) || '1cm';
+    const minimumHeight = formatCm(defaults.height) || '1cm';
 
     if (flags.hasExplicitCornerRadius) {
       options.push(`rounded corners=${rounding(Math.max(0, radius))}pt`);
@@ -223,7 +223,6 @@ export function registerRectangle() {
     options.push('outer sep=5pt'); // Rectangle outer spacing
     options.push(ALIGN_CENTER);
     options.push('font=\\bfseries\\Large\\sffamily'); // Rectangle typography
-    options.push('anchor=south west'); // Rectangle anchor requirement
 
     return { options };
   });
