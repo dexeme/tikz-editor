@@ -684,6 +684,8 @@ export function createCanvasRenderer(canvas, state) {
     }
     ctx.restore();
 
+    ctx.globalAlpha = 1;
+
     const fontSize = Number(node.fontSize) || 16;
     const lines = (node.label || 'Node').toString().split(/\n/);
     const lineHeight = fontSize * 1.25;
@@ -972,14 +974,20 @@ export function createCanvasRenderer(canvas, state) {
     }
 
     if (isSelected) {
-      const handleRadius = 6 / scale;
-      ctx.fillStyle = state.borderPreviewSuppressed ? baseColor : '#38bdf8';
-      ctx.beginPath();
-      ctx.arc(line.start.x, line.start.y, handleRadius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(line.end.x, line.end.y, handleRadius, 0, Math.PI * 2);
-      ctx.fill();
+      const handleSize = 10 / scale;
+      const fill = state.borderPreviewSuppressed ? baseColor : '#38bdf8';
+      const stroke = state.borderPreviewSuppressed ? baseColor : '#0f172a';
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 1.5 / scale;
+      const drawHandle = point => {
+        ctx.beginPath();
+        ctx.rect(point.x - handleSize / 2, point.y - handleSize / 2, handleSize, handleSize);
+        ctx.fill();
+        ctx.stroke();
+      };
+      drawHandle(line.start);
+      drawHandle(line.end);
     }
     ctx.restore();
   }
@@ -1562,6 +1570,43 @@ export function createCanvasRenderer(canvas, state) {
       ctx.lineTo(1e4, guides.horizontal);
       ctx.stroke();
     }
+    if (guides.snapTarget) {
+      ctx.save();
+      const size = 8 / scale;
+      ctx.lineWidth = 1.5 / scale;
+      ctx.fillStyle = '#38bdf8';
+      ctx.strokeStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.rect(
+        guides.snapTarget.x - size / 2,
+        guides.snapTarget.y - size / 2,
+        size,
+        size
+      );
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+    if (guides.rotation && guides.rotation.pivot && Number.isFinite(guides.rotation.radius)) {
+      ctx.save();
+      const { pivot, angleStart = 0, angleCurrent = angleStart, radius } = guides.rotation;
+      if (radius > 0) {
+        ctx.lineWidth = 1.2 / scale;
+        ctx.strokeStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.moveTo(pivot.x, pivot.y);
+        const endX = pivot.x + Math.cos(angleCurrent) * radius;
+        const endY = pivot.y + Math.sin(angleCurrent) * radius;
+        ctx.lineTo(endX, endY);
+        ctx.stroke();
+        ctx.setLineDash([6 / scale, 6 / scale]);
+        const clockwise = angleCurrent < angleStart;
+        ctx.beginPath();
+        ctx.arc(pivot.x, pivot.y, radius, angleStart, angleCurrent, clockwise);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
     ctx.restore();
   }
 
@@ -1638,6 +1683,17 @@ export function createCanvasRenderer(canvas, state) {
     return null;
   }
 
+  function getNodeAnchorsSnapshot(node) {
+    if (!node) {
+      return [];
+    }
+    return getAnchorPoints(node).map(anchor => ({
+      direction: anchor.direction,
+      point: { x: anchor.point.x, y: anchor.point.y },
+      isConnectable: anchor.isConnectable,
+    }));
+  }
+
   function getNodeAtPosition(x, y) {
     return [...(state.nodes || [])].reverse().find(node => {
       return isPointInsideNode(node, { x, y });
@@ -1679,6 +1735,27 @@ export function createCanvasRenderer(canvas, state) {
       }
     }
     return null;
+  }
+
+  function getLineHandleAtPosition(x, y) {
+    if (state.selected?.type !== 'line') {
+      return null;
+    }
+    const line = state.selected?.item;
+    if (!line) {
+      return null;
+    }
+    const scale = getCameraScale();
+    const radius = 12 / scale;
+    const checkHandle = (point, handle) => {
+      if (!point) return null;
+      const distance = Math.hypot(point.x - x, point.y - y);
+      if (distance <= radius) {
+        return { line, handle };
+      }
+      return null;
+    };
+    return checkHandle(line.start, 'start') || checkHandle(line.end, 'end');
   }
 
   function getEdgeHandleAtPosition(x, y) {
@@ -1907,6 +1984,7 @@ export function createCanvasRenderer(canvas, state) {
     getNodeAtPosition,
     getEdgeAtPosition,
     getLineAtPosition,
+    getLineHandleAtPosition,
     getEdgeHandleAtPosition,
     getAnchorAtPosition,
     getTextBlockAtPosition,
@@ -1917,6 +1995,7 @@ export function createCanvasRenderer(canvas, state) {
     getFrameBounds,
     getMatrixGridBounds,
     getEdgeLabelAtPosition,
+    getNodeAnchors: node => getNodeAnchorsSnapshot(node),
     getViewport: () => ({ width: rendererState.width, height: rendererState.height }),
     getEdgeGeometry: edge => {
       const from = state.nodes.find(node => node.id === edge.from);

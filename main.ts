@@ -33,6 +33,7 @@ const defaultNode = shape => {
     borderWidth: 3,
     borderStyle: 'solid',
     cornerRadius: 16,
+    opacity: 1,
     rectangleSplitCells: [],
   };
 };
@@ -50,6 +51,8 @@ const TEXT_BLOCK_BORDER_STYLE_DEFAULT = 'solid';
 const TEXT_BLOCK_OPACITY_RANGE = { min: 0.1, max: 1 };
 const RECTANGLE_SPLIT_MIN_PARTS = 2;
 const RECTANGLE_SPLIT_MAX_PARTS = 12;
+const LINE_SNAP_TOLERANCE = 12;
+const GRID_SNAP_SPACING = 64;
 
 function clampNodeSize(value, dimension) {
   const limits = dimension === 'height' ? NODE_SIZE_LIMITS.height : NODE_SIZE_LIMITS.width;
@@ -386,8 +389,8 @@ function normalizeNode(node = {}) {
     ? Math.min(64, cornerRadiusValue)
     : 16;
   const opacityValue = Number(normalized.opacity);
-  if (!Number.isFinite(opacityValue) || opacityValue < 0 || opacityValue > 1) {
-    delete normalized.opacity;
+  if (!Number.isFinite(opacityValue) || opacityValue < 0.1 || opacityValue > 1) {
+    normalized.opacity = 1;
   } else {
     normalized.opacity = Number(opacityValue.toFixed(2));
   }
@@ -487,6 +490,7 @@ createApp({
       matrixGrids: [],
       mode: 'move',
       selected: null,
+      lineHandles: null,
       theme: 'dark',
       edgeStart: null,
       dragContext: null,
@@ -500,7 +504,7 @@ createApp({
         offsetY: 0,
       },
       cameraDrag: null,
-      guides: { vertical: null, horizontal: null },
+      guides: { vertical: null, horizontal: null, snapTarget: null, rotation: null },
       edgeThickness: DEFAULT_EDGE_THICKNESS,
       edgeLabelAlignment: 'right',
       selectionRect: null,
@@ -576,6 +580,38 @@ createApp({
     const selectedLine = computed(() =>
       state.selected?.type === 'line' ? state.selected.item : null
     );
+
+    function syncLineHandles(line) {
+      if (!line) {
+        state.lineHandles = null;
+        return;
+      }
+      const start = line.start || { x: 0, y: 0 };
+      const end = line.end || { x: 0, y: 0 };
+      state.lineHandles = {
+        start: { x: Number(start.x) || 0, y: Number(start.y) || 0 },
+        end: { x: Number(end.x) || 0, y: Number(end.y) || 0 },
+      };
+    }
+
+    watch(
+      () => {
+        const line = selectedLine.value;
+        if (!line) {
+          return null;
+        }
+        return [line.id, line.start?.x, line.start?.y, line.end?.x, line.end?.y];
+      },
+      () => {
+        if (selectedLine.value) {
+          syncLineHandles(selectedLine.value);
+        } else {
+          syncLineHandles(null);
+        }
+      },
+      { immediate: true }
+    );
+
     const inspectorVisible = computed(() => {
       const type = state.selected?.type;
       return type === 'node' || type === 'edge' || type === 'line' || type === 'text';
@@ -4186,6 +4222,7 @@ createApp({
           state.mode = 'move';
         }
         state.borderPreviewSuppressed = false;
+        syncLineHandles(null);
         return;
       }
       if (payload.type === 'node') {
@@ -4213,6 +4250,7 @@ createApp({
           item: primary,
           items,
         };
+        syncLineHandles(null);
         return;
       }
       if (payload.type === 'line') {
@@ -4222,14 +4260,19 @@ createApp({
             state.mode = 'move';
           }
           state.borderPreviewSuppressed = false;
+          syncLineHandles(null);
           return;
         }
         state.selected = { type: 'line', item: payload.item };
         state.borderPreviewSuppressed = false;
+        syncLineHandles(payload.item);
         return;
       }
       state.selected = payload;
       state.borderPreviewSuppressed = false;
+      if (payload.type !== 'line') {
+        syncLineHandles(null);
+      }
     }
 
     function removeSelected(options = {}) {
@@ -4315,6 +4358,7 @@ createApp({
           fontSize: node.fontSize,
           cornerRadius: node.cornerRadius,
           shape: node.shape,
+          opacity: node.opacity,
           size: (() => {
             const { width, height } = resolveNodeSize(node);
             return { width, height };
@@ -4433,6 +4477,7 @@ createApp({
           node.borderWidth = nodeData.borderWidth;
           node.fontSize = nodeData.fontSize;
           node.cornerRadius = nodeData.cornerRadius;
+          node.opacity = nodeData.opacity;
           if (nodeData.size) {
             node.size = normalizeNodeSizeForShape(nodeData.size, node.shape);
           }
@@ -4589,12 +4634,33 @@ createApp({
       if (!state.guides) return;
       state.guides.vertical = null;
       state.guides.horizontal = null;
+      state.guides.snapTarget = null;
+      state.guides.rotation = null;
     }
 
-    function applyGuides(vertical, horizontal) {
+    function applyGuides(optionsOrVertical, maybeHorizontal) {
       if (!state.guides) return;
-      state.guides.vertical = vertical ?? null;
-      state.guides.horizontal = horizontal ?? null;
+      if (
+        typeof optionsOrVertical === 'object' &&
+        optionsOrVertical !== null &&
+        maybeHorizontal === undefined
+      ) {
+        const {
+          vertical = null,
+          horizontal = null,
+          snapTarget = null,
+          rotation = null,
+        } = optionsOrVertical;
+        state.guides.vertical = vertical;
+        state.guides.horizontal = horizontal;
+        state.guides.snapTarget = snapTarget;
+        state.guides.rotation = rotation;
+        return;
+      }
+      state.guides.vertical = optionsOrVertical ?? null;
+      state.guides.horizontal = maybeHorizontal ?? null;
+      state.guides.snapTarget = null;
+      state.guides.rotation = null;
     }
 
     function getNodesWithinRect(rect) {
@@ -4692,11 +4758,29 @@ createApp({
       renderer.value?.draw();
     }
 
-    function updateDrawing(pointer) {
+    function updateDrawing(pointer, options = {}) {
       if (!state.drawing || !pointer) {
         return;
       }
-      state.drawing.current = { x: pointer.x, y: pointer.y };
+      const draft = state.drawing;
+      if (draft.type === 'line') {
+        let nextPoint = { x: pointer.x, y: pointer.y };
+        if (options.shiftKey) {
+          nextPoint = constrainPointToAxis(draft.start, nextPoint);
+          clearGuides();
+        } else {
+          const snapped = findLineSnapPoint(nextPoint, { excludePoints: [draft.start] });
+          if (snapped) {
+            nextPoint = { x: snapped.x, y: snapped.y };
+            applyGuides({ snapTarget: snapped });
+          } else {
+            clearGuides();
+          }
+        }
+        draft.current = nextPoint;
+      } else {
+        draft.current = { x: pointer.x, y: pointer.y };
+      }
       renderer.value?.draw();
     }
 
@@ -4711,6 +4795,7 @@ createApp({
         state.mode = 'move';
       }
       renderer.value?.draw();
+      clearGuides();
     }
 
     function completeDrawing(pointer) {
@@ -4780,6 +4865,7 @@ createApp({
       state.drawing = null;
       state.mode = 'move';
       renderer.value?.draw();
+      clearGuides();
       if (!created && draft.selection) {
         setSelected(draft.selection);
       }
@@ -4926,6 +5012,128 @@ createApp({
       };
     }
 
+    function constrainPointToAxis(origin, point) {
+      if (!origin || !point) {
+        return point;
+      }
+      const dx = point.x - origin.x;
+      const dy = point.y - origin.y;
+      if (Math.abs(dx) > Math.abs(dy)) {
+        return { x: point.x, y: origin.y };
+      }
+      return { x: origin.x, y: point.y };
+    }
+
+    function getGridSnapPoints(point) {
+      if (!point) return [];
+      const baseX = Math.round(point.x / GRID_SNAP_SPACING) * GRID_SNAP_SPACING;
+      const baseY = Math.round(point.y / GRID_SNAP_SPACING) * GRID_SNAP_SPACING;
+      const points = [];
+      for (let dx = -GRID_SNAP_SPACING; dx <= GRID_SNAP_SPACING; dx += GRID_SNAP_SPACING) {
+        for (let dy = -GRID_SNAP_SPACING; dy <= GRID_SNAP_SPACING; dy += GRID_SNAP_SPACING) {
+          const x = baseX + dx;
+          const y = baseY + dy;
+          points.push({ x, y, type: 'grid', source: `grid-${x}-${y}` });
+        }
+      }
+      return points;
+    }
+
+    function collectLineSnapPoints(point) {
+      if (!renderer.value) {
+        return [];
+      }
+      const points = [];
+      const pushPoint = (x, y, meta = {}) => {
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          return;
+        }
+        points.push({ x, y, ...meta });
+      };
+
+      state.nodes.forEach(node => {
+        pushPoint(node.x, node.y, { type: 'node-center', source: node.id });
+        const anchors = renderer.value?.getNodeAnchors?.(node) || [];
+        anchors.forEach(anchor => {
+          if (!anchor?.point) return;
+          pushPoint(anchor.point.x, anchor.point.y, {
+            type: 'node-anchor',
+            source: `${node.id}:${anchor.direction}`,
+            direction: anchor.direction,
+          });
+        });
+      });
+
+      (state.textBlocks || []).forEach(block => {
+        const left = block.x;
+        const top = block.y;
+        const right = block.x + block.width;
+        const bottom = block.y + block.height;
+        const centerX = (left + right) / 2;
+        const centerY = (top + bottom) / 2;
+        pushPoint(centerX, centerY, { type: 'text-center', source: block.id });
+        pushPoint(left, top, { type: 'text-corner', source: `${block.id}-nw` });
+        pushPoint(right, top, { type: 'text-corner', source: `${block.id}-ne` });
+        pushPoint(right, bottom, { type: 'text-corner', source: `${block.id}-se` });
+        pushPoint(left, bottom, { type: 'text-corner', source: `${block.id}-sw` });
+      });
+
+      if (state.frame) {
+        const frame = state.frame;
+        const corners = [
+          { x: frame.x, y: frame.y, source: 'frame-nw' },
+          { x: frame.x + frame.width, y: frame.y, source: 'frame-ne' },
+          { x: frame.x + frame.width, y: frame.y + frame.height, source: 'frame-se' },
+          { x: frame.x, y: frame.y + frame.height, source: 'frame-sw' },
+        ];
+        corners.forEach(corner => {
+          pushPoint(corner.x, corner.y, { type: 'frame-corner', source: corner.source });
+        });
+        pushPoint(frame.x + frame.width / 2, frame.y, { type: 'frame-edge', source: 'frame-top' });
+        pushPoint(frame.x + frame.width, frame.y + frame.height / 2, {
+          type: 'frame-edge',
+          source: 'frame-right',
+        });
+        pushPoint(frame.x + frame.width / 2, frame.y + frame.height, {
+          type: 'frame-edge',
+          source: 'frame-bottom',
+        });
+        pushPoint(frame.x, frame.y + frame.height / 2, { type: 'frame-edge', source: 'frame-left' });
+      }
+
+      points.push(...getGridSnapPoints(point));
+      return points;
+    }
+
+    function findLineSnapPoint(point, options = {}) {
+      if (!point) {
+        return null;
+      }
+      const skip = Array.isArray(options.excludePoints) ? options.excludePoints : [];
+      const tolerance = options.tolerance ?? LINE_SNAP_TOLERANCE;
+      const candidates = collectLineSnapPoints(point);
+      let best = null;
+      candidates.forEach(candidate => {
+        if (!candidate) return;
+        const matchesSkip = skip.some(skipPoint => {
+          if (!skipPoint) {
+            return false;
+          }
+          return Math.hypot((candidate.x ?? 0) - skipPoint.x, (candidate.y ?? 0) - skipPoint.y) < 1e-3;
+        });
+        if (matchesSkip) {
+          return;
+        }
+        const dx = (candidate.x ?? 0) - point.x;
+        const dy = (candidate.y ?? 0) - point.y;
+        const distance = Math.hypot(dx, dy);
+        if (distance <= tolerance && (!best || distance < best.distance)) {
+          best = { ...candidate, distance };
+        }
+      });
+      return best;
+    }
+
     function applyFrameResize(context, dx, dy) {
       if (!state.frame) return;
       const minSize = 64;
@@ -4965,6 +5173,7 @@ createApp({
       const pointer = getPointerPosition(event);
       state.pointer = pointer;
       const frameHandle = renderer.value?.getFrameHandleAtPosition(pointer.x, pointer.y) || null;
+      const allowDrag = state.mode === 'move';
       if (shouldStartCameraPan(event)) {
         closeDiagramMenu();
         startCameraDrag(pointer);
@@ -5009,12 +5218,13 @@ createApp({
       const lineHit = !node && !edge && !textHit && !matrixHit
         ? renderer.value?.getLineAtPosition(pointer.x, pointer.y) || null
         : null;
+      const lineHandleHit = allowDrag && event.button === 0
+        ? renderer.value?.getLineHandleAtPosition(pointer.x, pointer.y) || null
+        : null;
       if (!node && anchorHit) {
         node = anchorHit.node;
       }
       closeDiagramMenu();
-
-      const allowDrag = state.mode === 'move';
 
       const canStartEdgeFromAnchor = !!anchorHit && state.mode === 'move';
 
@@ -5111,19 +5321,57 @@ createApp({
         return;
       }
 
+      if (lineHandleHit?.line && allowDrag && event.button === 0) {
+        const targetLine = lineHandleHit.line;
+        setSelected({ type: 'line', item: targetLine });
+        startDrag({
+          type: 'line',
+          mode: 'resize-line',
+          item: targetLine,
+          pointerStart: pointer,
+          handle: lineHandleHit.handle,
+          initial: {
+            start: { ...targetLine.start },
+            end: { ...targetLine.end },
+          },
+        });
+        event.preventDefault();
+        renderer.value?.draw();
+        return;
+      }
+
       if (lineHit) {
         setSelected({ type: 'line', item: lineHit });
         if (allowDrag && event.button === 0) {
-          startDrag({
-            type: 'line',
-            mode: 'move-line',
-            item: lineHit,
-            pointerStart: pointer,
-            initial: {
-              start: { ...lineHit.start },
-              end: { ...lineHit.end },
-            },
-          });
+          const pivot = { x: lineHit.start.x, y: lineHit.start.y };
+          const initialAngle = Math.atan2(pointer.y - pivot.y, pointer.x - pivot.x);
+          const initialLength = Math.hypot(lineHit.end.x - pivot.x, lineHit.end.y - pivot.y);
+          if (event.altKey && initialLength > 0) {
+            startDrag({
+              type: 'line',
+              mode: 'rotate-line',
+              item: lineHit,
+              pointerStart: pointer,
+              pivot,
+              initialAngle,
+              length: initialLength,
+              original: {
+                start: { ...lineHit.start },
+                end: { ...lineHit.end },
+              },
+            });
+          } else {
+            startDrag({
+              type: 'line',
+              mode: 'move-line',
+              item: lineHit,
+              pointerStart: pointer,
+              initial: {
+                start: { ...lineHit.start },
+                end: { ...lineHit.end },
+              },
+            });
+          }
           event.preventDefault();
         }
         renderer.value?.draw();
@@ -5301,7 +5549,7 @@ createApp({
       }
 
       if (state.drawing) {
-        updateDrawing(pointer);
+        updateDrawing(pointer, { shiftKey: event.shiftKey });
         event.preventDefault();
         return;
       }
@@ -5374,7 +5622,7 @@ createApp({
           const guides = computeGuideSnap(context, dx, dy);
           if (guides) {
             ({ dx, dy } = guides);
-            applyGuides(guides.vertical, guides.horizontal);
+            applyGuides({ vertical: guides.vertical, horizontal: guides.horizontal });
           } else {
             clearGuides();
           }
@@ -5406,6 +5654,53 @@ createApp({
             context.item.start.y = context.initial.start.y + dy;
             context.item.end.x = context.initial.end.x + dx;
             context.item.end.y = context.initial.end.y + dy;
+            syncLineHandles(context.item);
+          }
+        } else if (context.mode === 'resize-line') {
+          const line = context.item;
+          if (line && context.handle) {
+            const fixedPoint = context.handle === 'start' ? line.end : line.start;
+            let nextPoint = { x: pointer.x, y: pointer.y };
+            if (event.shiftKey && fixedPoint) {
+              nextPoint = constrainPointToAxis(fixedPoint, nextPoint);
+              clearGuides();
+            } else {
+              const snapped = findLineSnapPoint(nextPoint, { excludePoints: [fixedPoint] });
+              if (snapped) {
+                nextPoint = { x: snapped.x, y: snapped.y };
+                applyGuides({ snapTarget: snapped });
+              } else {
+                clearGuides();
+              }
+            }
+            if (context.handle === 'start') {
+              line.start.x = nextPoint.x;
+              line.start.y = nextPoint.y;
+            } else {
+              line.end.x = nextPoint.x;
+              line.end.y = nextPoint.y;
+            }
+            syncLineHandles(line);
+          }
+        } else if (context.mode === 'rotate-line') {
+          const line = context.item;
+          const pivot = context.pivot;
+          const length = context.length;
+          if (line && pivot && Number.isFinite(length) && length > 0) {
+            const pointerAngle = Math.atan2(pointer.y - pivot.y, pointer.x - pivot.x);
+            line.start.x = pivot.x;
+            line.start.y = pivot.y;
+            line.end.x = pivot.x + Math.cos(pointerAngle) * length;
+            line.end.y = pivot.y + Math.sin(pointerAngle) * length;
+            syncLineHandles(line);
+            applyGuides({
+              rotation: {
+                pivot: { ...pivot },
+                angleStart: context.initialAngle,
+                angleCurrent: pointerAngle,
+                radius: length,
+              },
+            });
           }
         } else if (context.mode === 'resize-text') {
           const nextWidth = Math.max(TEXT_BLOCK_CONSTRAINTS.minWidth, context.initial.width + dx);

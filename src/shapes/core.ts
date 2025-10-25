@@ -279,8 +279,8 @@ export function buildStyleOptions(normalized, { registerColor }) {
     suffix.push(`font=${fontCommand}`);
   }
 
-  if (normalized.flags.hasExplicitOpacity && Number.isFinite(normalized.opacity)) {
-    suffix.push(`opacity=${clamp(normalized.opacity, 0, 1)}`);
+  if (Number.isFinite(normalized.opacity) && normalized.opacity < 1) {
+    suffix.push(`opacity=${normalized.opacity.toFixed(2)}`);
   }
 
   if (normalized.flags.hasExplicitShadow && normalized.shadow) {

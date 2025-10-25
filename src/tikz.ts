@@ -98,6 +98,7 @@ const isBlockInsideFrame = (block, frame) => {
   return topLeftInside && bottomRightInside;
 };
 
+
 export function generateTikzDocument(
   nodes,
   edges,
@@ -120,6 +121,18 @@ export function generateTikzDocument(
     ? options.edgeLabelAlignment
     : 'right';
   const formatShift = value => formatPixelLength(value);
+  const frameOffsetX =
+    frame && Number.isFinite(frame.x) ? Number(frame.x) : 0;
+  const frameOffsetY =
+    frame && Number.isFinite(frame.y) ? Number(frame.y) : 0;
+  const normalizeX = value => {
+    const numeric = Number(value);
+    return (Number.isFinite(numeric) ? numeric : 0) - frameOffsetX;
+  };
+  const normalizeY = value => {
+    const numeric = Number(value);
+    return (Number.isFinite(numeric) ? numeric : 0) - frameOffsetY;
+  };
 
   const registerColor = hex => {
     if (!hex) return null;
@@ -155,27 +168,6 @@ export function generateTikzDocument(
   const filteredNodes = nodes.filter(node => isNodeInsideFrame(node, frame));
   const nodeMap = new Map(filteredNodes.map(node => [node.id, node]));
   const filteredEdges = edges.filter(edge => nodeMap.has(edge.from) && nodeMap.has(edge.to));
-  const filteredLines = Array.isArray(lines)
-    ? lines
-        .map(line => ({
-          id: line.id,
-          start: {
-            x: Number(line.start?.x) || 0,
-            y: Number(line.start?.y) || 0,
-          },
-          end: {
-            x: Number(line.end?.x) || 0,
-            y: Number(line.end?.y) || 0,
-          },
-          color: line.color,
-          style:
-            line.style === 'dashed' || line.style === 'dotted'
-              ? line.style
-              : 'solid',
-          thickness: line.thickness,
-        }))
-        .filter(line => isPointInsideFrame(line.start, frame) && isPointInsideFrame(line.end, frame))
-    : [];
   let textIdSequence = 1;
   const filteredTextBlocks = Array.isArray(textBlocks)
     ? textBlocks
@@ -265,6 +257,27 @@ export function generateTikzDocument(
         })
         .filter(Boolean)
     : [];
+  const filteredLines = Array.isArray(lines)
+    ? lines
+        .map(line => ({
+          id: line.id,
+          start: {
+            x: Number(line.start?.x) || 0,
+            y: Number(line.start?.y) || 0,
+          },
+          end: {
+            x: Number(line.end?.x) || 0,
+            y: Number(line.end?.y) || 0,
+          },
+          color: line.color,
+          style:
+            line.style === 'dashed' || line.style === 'dotted'
+              ? line.style
+              : 'solid',
+          thickness: line.thickness,
+        }))
+        .filter(line => isPointInsideFrame(line.start, frame) && isPointInsideFrame(line.end, frame))
+    : [];
 
   let body = '\\begin{tikzpicture}[node distance=2cm, auto, >=stealth]\n';
 
@@ -349,8 +362,8 @@ export function generateTikzDocument(
       ...styleResult.suffix,
     ].filter(Boolean);
 
-    const x = formatCoordinate(node.x);
-    const y = formatCoordinate(-node.y);
+    const x = formatCoordinate(normalizeX(node.x));
+    const y = formatCoordinate(-normalizeY(node.y));
 
     const labelContent =
       labelOverride != null ? labelOverride : formatNodeLabel(normalizedNode.label);
@@ -416,8 +429,8 @@ export function generateTikzDocument(
       if (Number.isFinite(blockOpacity) && blockOpacity > 0 && blockOpacity < 1) {
         styleOptions.push(`opacity=${Math.min(1, Math.max(0.05, blockOpacity)).toFixed(2)}`);
       }
-      const x = formatCoordinate(block.x);
-      const y = formatCoordinate(-block.y);
+      const x = formatCoordinate(normalizeX(block.x));
+      const y = formatCoordinate(-normalizeY(block.y));
       const content = formatNodeLabel(block.text);
       body += `    \\node[${styleOptions.join(', ')}] (${block.id}) at (${x},${y}) {${content}};\n`;
     });
@@ -534,10 +547,10 @@ export function generateTikzDocument(
       parts.push(lineWidthOption);
     }
     const optionsClause = parts.length ? `[${parts.join(', ')}]` : '';
-    const startX = formatCoordinate(line.start.x);
-    const startY = formatCoordinate(-line.start.y);
-    const endX = formatCoordinate(line.end.x);
-    const endY = formatCoordinate(-line.end.y);
+    const startX = formatCoordinate(normalizeX(line.start.x));
+    const startY = formatCoordinate(-normalizeY(line.start.y));
+    const endX = formatCoordinate(normalizeX(line.end.x));
+    const endY = formatCoordinate(-normalizeY(line.end.y));
     body += `    \\draw${optionsClause} (${startX},${startY}) -- (${endX},${endY});\n`;
   });
 
@@ -546,8 +559,8 @@ export function generateTikzDocument(
   }
 
   matrixBlocks.forEach((grid, index) => {
-    const shiftX = formatShift(grid.x);
-    const shiftY = formatShift(-grid.y);
+    const shiftX = formatShift(normalizeX(grid.x));
+    const shiftY = formatShift(-normalizeY(grid.y));
     const cellSizeCm = pxToCm(grid.cellSize);
     if (!Number.isFinite(cellSizeCm) || cellSizeCm <= 0) {
       return;
