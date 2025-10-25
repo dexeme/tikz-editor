@@ -14,6 +14,9 @@ registerBuiltInShapes();
 
 const TEXT_BLOCK_PADDING = 14;
 const TEXT_BLOCK_CORNER_RADIUS = 12;
+const TEXT_BLOCK_BORDER_WIDTH_DEFAULT = 2;
+const TEXT_BLOCK_BORDER_STYLE_DEFAULT = 'solid';
+const TEXT_BLOCK_OPACITY_RANGE = { min: 0.1, max: 1 };
 const RECTANGLE_SPLIT_PART_NAMES = ['two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
 
 const formatCoordinate = (value) => {
@@ -182,6 +185,11 @@ export function generateTikzDocument(
           const widthValue = Number(block?.width);
           const heightValue = Number(block?.height);
           const fontSizeValue = Number(block?.fontSize);
+          const borderWidthValue = Number(block?.borderWidth);
+          const opacityValue = Number(block?.opacity);
+          const normalizedBorderStyle =
+            typeof block?.borderStyle === 'string' ? block.borderStyle.trim().toLowerCase() : '';
+          const showBackground = block?.showBackground === false ? false : true;
           return {
             id: typeof block?.id === 'string' ? block.id : `text-block-${textIdSequence++}`,
             x: Number.isFinite(xValue) ? xValue : 0,
@@ -191,6 +199,29 @@ export function generateTikzDocument(
             text: block?.text != null ? String(block.text) : '',
             fontSize: Number.isFinite(fontSizeValue) && fontSizeValue > 0 ? fontSizeValue : 16,
             color: typeof block?.color === 'string' && block.color.trim() ? block.color.trim() : null,
+            fillColor:
+              typeof block?.fillColor === 'string' && block.fillColor.trim()
+                ? block.fillColor.trim()
+                : null,
+            borderColor:
+              typeof block?.borderColor === 'string' && block.borderColor.trim()
+                ? block.borderColor.trim()
+                : null,
+            borderWidth:
+              Number.isFinite(borderWidthValue) && borderWidthValue >= 0
+                ? borderWidthValue
+                : TEXT_BLOCK_BORDER_WIDTH_DEFAULT,
+            borderStyle:
+              normalizedBorderStyle === 'dashed' || normalizedBorderStyle === 'dotted'
+                ? normalizedBorderStyle
+                : TEXT_BLOCK_BORDER_STYLE_DEFAULT,
+            showBackground,
+            opacity: Number.isFinite(opacityValue)
+              ? Math.min(
+                  TEXT_BLOCK_OPACITY_RANGE.max,
+                  Math.max(TEXT_BLOCK_OPACITY_RANGE.min, opacityValue)
+                )
+              : TEXT_BLOCK_OPACITY_RANGE.max,
           };
         })
         .filter(block => isBlockInsideFrame(block, frame))

@@ -211,7 +211,7 @@ export function registerRectangle() {
       options.push('line width=2pt'); // Default rectangle border thickness
     }
 
-    options.push('dash pattern=on 5pt off 3pt'); // Rectangle border dash pattern
+    //options.push('dash pattern=off 5pt off 3pt'); // Rectangle border dash pattern
 
     if (!flags.hasExplicitFill) {
       options.push('fill=cyan!15'); // Default rectangle fill

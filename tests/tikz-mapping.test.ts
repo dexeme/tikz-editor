@@ -267,4 +267,61 @@ assert.ok(
   'Custom matrix colors should be declared in the preamble'
 );
 
+const textBlockAppearanceDoc = generateTikzDocument(
+  [],
+  [],
+  [],
+  [
+    {
+      id: 'text-appearance',
+      x: 0,
+      y: 0,
+      width: 240,
+      height: 120,
+      text: 'Styled block',
+      fontSize: 20,
+      color: '#111827',
+      fillColor: '#ffedd5',
+      borderColor: '#f97316',
+      borderWidth: 4,
+      borderStyle: 'dashed',
+      showBackground: true,
+      opacity: 0.65,
+    },
+  ]
+);
+assert.ok(
+  /text=customColor\d+/.test(textBlockAppearanceDoc) &&
+    /fill=customColor\d+/.test(textBlockAppearanceDoc) &&
+    /draw=customColor\d+/.test(textBlockAppearanceDoc),
+  'Text blocks should export text, fill, and border colors'
+);
+assert.ok(
+  /\[.*dashed/.test(textBlockAppearanceDoc),
+  'Text block border style should propagate to TikZ output'
+);
+assert.ok(
+  textBlockAppearanceDoc.includes('line width=2.40pt'),
+  'Text block border width should be converted to pt units'
+);
+assert.ok(
+  textBlockAppearanceDoc.includes('opacity=0.65'),
+  'Semi-transparent text blocks should keep their opacity'
+);
+
+const rectangleBorderStyleDoc = generateTikzDocument(
+  [
+    {
+      ...makeNode('R', 40, 40),
+      shape: 'rectangle',
+      borderStyle: 'dotted',
+    },
+  ],
+  []
+);
+assert.ok(
+  /\\node\[draw=customColor\d+, dotted/.test(rectangleBorderStyleDoc),
+  'Rectangle nodes should include the requested border style in TikZ output'
+);
+
 console.log('All routing mapping tests passed');

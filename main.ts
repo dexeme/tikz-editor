@@ -298,6 +298,7 @@ function makeLine(start, end) {
     color: '#94a3b8',
     style: 'solid',
     thickness: DEFAULT_EDGE_THICKNESS,
+    label: null,
   };
 }
 
@@ -314,6 +315,10 @@ function normalizeLine(line = {}) {
   const thickness = Number.isFinite(thicknessValue) && thicknessValue > 0
     ? thicknessValue
     : null;
+  const label = typeof line.label === 'string' && line.label.trim()
+    ? line.label.trim()
+    : null;
+
   return {
     id: typeof line.id === 'string' ? line.id : `line-${lineSequence++}`,
     start: {
@@ -327,6 +332,7 @@ function normalizeLine(line = {}) {
     color,
     style,
     thickness,
+    label,
   };
 }
 
@@ -572,7 +578,7 @@ createApp({
     );
     const inspectorVisible = computed(() => {
       const type = state.selected?.type;
-      return type === 'node' || type === 'edge' || type === 'line';
+      return type === 'node' || type === 'edge' || type === 'line' || type === 'text';
     });
     const nodeToolbarState = reactive({
       activePopover: null,
@@ -2381,6 +2387,7 @@ createApp({
           style: line.style || 'solid',
           thickness:
             Number.isFinite(rawThickness) && rawThickness > 0 ? rawThickness : null,
+          label: line.label || null,
         };
         flash('Line formatting copied.');
       }
@@ -2560,6 +2567,11 @@ createApp({
             changed = true;
           }
         }
+        if (typeof payload.label === 'string' && line.label !== payload.label) {
+          line.label = payload.label;
+          changed = true;
+        }
+
         if (changed) {
           pushHistory();
           flash('Formatting applied to the selected line.');
@@ -2723,6 +2735,28 @@ createApp({
       }
       invalidateTikz();
       renderer.value?.draw();
+    }
+
+    function updateSelectedLineLabel(value, options = {}) {
+      const line = selectedLine.value;
+      if (!line) {
+        return;
+      }
+      const previous = line.label;
+      line.label = value;
+      const hasChanged = previous !== value;
+      if ((options.commit !== false && hasChanged) || options.forceCommit) {
+        pushHistory();
+      }
+    }
+
+    function clearLineLabel() {
+      const line = selectedLine.value;
+      if (!line || line.label == null) {
+        return;
+      }
+      line.label = null;
+      pushHistory();
     }
 
     function setEdgeLabelAlignment(alignment) {
@@ -5491,6 +5525,12 @@ createApp({
         openEdgeEditor(labelHit.edge, labelHit.center);
         return;
       }
+      const lineHit = renderer.value?.getLineAtPosition(pointer.x, pointer.y);
+      if (lineHit) {
+        setSelected({ type: 'line', item: lineHit });
+        openLineEditor(lineHit);
+        return;
+      }
       const node = renderer.value?.getNodeAtPosition(pointer.x, pointer.y);
       if (node) {
         setSelected({ type: 'node', item: node });
@@ -5584,6 +5624,26 @@ createApp({
       });
     }
 
+    function openLineEditor(line) {
+      const point = {
+        x: (line.start.x + line.end.x) / 2,
+        y: (line.start.y + line.end.y) / 2,
+      };
+      inlineEditor.value = line.label || '';
+      inlineEditor.width = 350;
+      inlineEditor.height = 220;
+      inlineEditor.type = 'line';
+      inlineEditor.target = line;
+      const position = positionInlineEditor(point, inlineEditor.width, inlineEditor.height);
+      inlineEditor.left = position.left;
+      inlineEditor.top = position.top;
+      inlineEditor.visible = true;
+      nextTick(() => {
+        inlineEditorRef.value?.focus();
+        inlineEditorRef.value?.select();
+      });
+    }
+
     function closeInlineEditor() {
       inlineEditor.visible = false;
       inlineEditor.value = '';
@@ -5620,6 +5680,12 @@ createApp({
       } else if (inlineEditor.type === 'text') {
         if (inlineEditor.target.text !== inlineEditor.value) {
           inlineEditor.target.text = inlineEditor.value;
+          pushHistory();
+        }
+      } else if (inlineEditor.type === 'line') {
+        const value = inlineEditor.value.trim();
+        if (inlineEditor.target.label !== value) {
+          inlineEditor.target.label = value;
           pushHistory();
         }
       }

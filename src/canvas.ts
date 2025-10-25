@@ -147,6 +147,7 @@ const resolveDashPattern = (style, scale) => {
   if (style === 'dotted') {
     return [3 / scale, 6 / scale];
   }
+  
   return [];
 };
 
