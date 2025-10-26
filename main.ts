@@ -472,7 +472,7 @@ createApp({
       mode: 'move',
       selected: null,
       lineHandles: null,
-      theme: 'dark',
+      theme: 'light',
       edgeStart: null,
       dragContext: null,
       dragMoved: false,
