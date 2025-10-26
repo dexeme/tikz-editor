@@ -1,0 +1,72 @@
+{
+  "id": "linear-flow",
+  "name": "Linear step flow",
+  "description": "Template with three sequential stages for simple flows.",
+  "nodes": [
+    {
+      "id": "tpl-linear-start",
+      "label": "Initial idea",
+      "color": "#bae6fd",
+      "shape": "rectangle",
+      "fontSize": "16",
+      "x": 260,
+      "y": 220
+    },
+    {
+      "id": "tpl-linear-review",
+      "label": "Review and adjust",
+      "color": "#fef3c7",
+      "shape": "rectangle",
+      "fontSize": "16",
+      "x": 520,
+      "y": 220
+    },
+    {
+      "id": "tpl-linear-delivery",
+      "label": "Final delivery",
+      "color": "#bbf7d0",
+      "shape": "rectangle",
+      "fontSize": "16",
+      "x": 780,
+      "y": 220
+    }
+  ],
+  "edges": [
+    {
+      "id": "tpl-linear-e1",
+      "from": "tpl-linear-start",
+      "to": "tpl-linear-review",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "bend": 30,
+      "label": { "text": "Plan", "position": "auto" }
+    },
+    {
+      "id": "tpl-linear-e2",
+      "from": "tpl-linear-review",
+      "to": "tpl-linear-delivery",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "bend": 30,
+      "label": { "text": "Execute", "position": "auto" }
+    }
+  ],
+  "textBlocks": [
+    {
+      "id": "tpl-linear-note",
+      "x": 240,
+      "y": 320,
+      "width": 360,
+      "height": 120,
+      "text": "Use this flow to quickly document simple pipelines. Double-click to adapt the labels.",
+      "fontSize": 16,
+      "fontWeight": 500
+    }
+  ]
+}

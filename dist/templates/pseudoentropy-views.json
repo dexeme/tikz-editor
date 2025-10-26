@@ -1,0 +1,148 @@
+{
+  "id": "pseudoentropy-views",
+  "name": "Pseudoentropy: classical views",
+  "description": "Diagram comparing the views of Yao, Hill, and Metric.",
+  "nodes": [
+    {
+      "id": "tpl-pseudo-source",
+      "label": "Probability distribution\n'X'",
+      "color": "#f0f0f0",
+      "shape": "rectangle",
+      "fontSize": "16",
+      "x": 220,
+      "y": 260
+    },
+    {
+      "id": "tpl-pseudo-goal",
+      "label": "What is the adversary's goal?",
+      "color": "#ffe6cc",
+      "shape": "diamond",
+      "fontSize": "16",
+      "x": 500,
+      "y": 260
+    },
+    {
+      "id": "tpl-pseudo-yao",
+      "label": "YAO's view\n(Pseudoentropy via Compression)\nAttacker: Constructive",
+      "color": "#e6e6ff",
+      "shape": "rectangle",
+      "fontSize": "16",
+      "x": 780,
+      "y": 180
+    },
+    {
+      "id": "tpl-pseudo-choice",
+      "label": "Comparison:\nONE vs. SET?",
+      "color": "#ffe6cc",
+      "shape": "diamond",
+      "fontSize": "16",
+      "x": 780,
+      "y": 340
+    },
+    {
+      "id": "tpl-pseudo-hill",
+      "label": "HILL's view\n(Pseudoentropy via Indistinguishability)\nAttacker: Decision",
+      "color": "#e6e6ff",
+      "shape": "rectangle",
+      "fontSize": "16",
+      "x": 1060,
+      "y": 240
+    },
+    {
+      "id": "tpl-pseudo-metric",
+      "label": "METRIC view\n(Pseudoentropy via Metric)\nAttacker: Decision",
+      "color": "#e6e6ff",
+      "shape": "rectangle",
+      "fontSize": "16",
+      "x": 1060,
+      "y": 400
+    }
+  ],
+  "edges": [
+    {
+      "id": "tpl-pseudo-e1",
+      "from": "tpl-pseudo-source",
+      "to": "tpl-pseudo-goal",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "bend": 30,
+      "label": null
+    },
+    {
+      "id": "tpl-pseudo-e2",
+      "from": "tpl-pseudo-goal",
+      "to": "tpl-pseudo-yao",
+      "fromAnchor": "north",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "90-vertical",
+      "bend": 30,
+      "label": { "text": "COMPRESS", "position": "auto" }
+    },
+    {
+      "id": "tpl-pseudo-e3",
+      "from": "tpl-pseudo-goal",
+      "to": "tpl-pseudo-choice",
+      "fromAnchor": "south",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "90-horizontal",
+      "bend": 30,
+      "label": { "text": "DISTINGUISH", "position": "auto" }
+    },
+    {
+      "id": "tpl-pseudo-e4",
+      "from": "tpl-pseudo-choice",
+      "to": "tpl-pseudo-hill",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "bend": 30,
+      "label": { "text": "Against ONE", "position": "auto" }
+    },
+    {
+      "id": "tpl-pseudo-e5",
+      "from": "tpl-pseudo-choice",
+      "to": "tpl-pseudo-metric",
+      "fromAnchor": "south",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "90-horizontal",
+      "bend": 30,
+      "label": { "text": "Against the SET", "position": "auto" }
+    },
+    {
+      "id": "tpl-pseudo-e6",
+      "from": "tpl-pseudo-hill",
+      "to": "tpl-pseudo-metric",
+      "fromAnchor": "south",
+      "toAnchor": "north",
+      "style": "dashed",
+      "direction": "->",
+      "shape": "straight",
+      "bend": 30,
+      "label": { "text": "implies", "position": "auto" }
+    },
+    {
+      "id": "tpl-pseudo-e7",
+      "from": "tpl-pseudo-metric",
+      "to": "tpl-pseudo-yao",
+      "fromAnchor": "north",
+      "toAnchor": "south",
+      "style": "dashed",
+      "direction": "->",
+      "shape": "straight",
+      "bend": 30,
+      "label": { "text": "implies", "position": "auto" }
+    }
+  ],
+  "textBlocks": []
+}
