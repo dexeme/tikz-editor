@@ -6,6 +6,22 @@ const FONT_MAP = {
   20: '\\large',
 };
 
+const formatFontSizeCommand = value => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return null;
+  }
+  const ptSize = Number((numeric * 0.75).toFixed(1));
+  if (!Number.isFinite(ptSize) || ptSize <= 0) {
+    return null;
+  }
+  const baseline = Number((ptSize * 1.2).toFixed(1));
+  if (!Number.isFinite(baseline) || baseline <= 0) {
+    return null;
+  }
+  return `\\fontsize{${ptSize}}{${baseline}}\\selectfont`;
+};
+
 const DEFAULTS = {
   fill: '#f8fafc',
   draw: '#94a3b8',
@@ -274,9 +290,14 @@ export function buildStyleOptions(normalized, { registerColor }) {
     suffix.push(`line width=${(normalized.lineWidth * 0.6).toFixed(2)}pt`);
   }
 
-  const fontCommand = FONT_MAP[String(normalized.fontSize)];
-  if (fontCommand) {
-    suffix.push(`font=${fontCommand}`);
+  const mappedFontCommand = FONT_MAP[String(normalized.fontSize)];
+  if (mappedFontCommand) {
+    suffix.push(`font=${mappedFontCommand}`);
+  } else if (normalized.flags.hasExplicitFontSize) {
+    const fallbackFont = formatFontSizeCommand(normalized.fontSize);
+    if (fallbackFont) {
+      suffix.push(`font=${fallbackFont}`);
+    }
   }
 
   if (Number.isFinite(normalized.opacity) && normalized.opacity < 1) {

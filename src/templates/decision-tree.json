@@ -1,0 +1,82 @@
+{
+  "id": "decision-tree",
+  "name": "Decision tree",
+  "description": "Branched structure with a decision and two outcomes.",
+  "nodes": [
+    {
+      "id": "tpl-decision-start",
+      "label": "Current situation",
+      "color": "#e0f2fe",
+      "shape": "circle",
+      "fontSize": "16",
+      "x": 360,
+      "y": 220
+    },
+    {
+      "id": "tpl-decision-choice",
+      "label": "Make a decision?",
+      "color": "#fde68a",
+      "shape": "decision",
+      "fontSize": "16",
+      "x": 560,
+      "y": 220
+    },
+    {
+      "id": "tpl-decision-yes",
+      "label": "Positive outcome",
+      "color": "#bbf7d0",
+      "shape": "rectangle",
+      "fontSize": "16",
+      "x": 760,
+      "y": 140
+    },
+    {
+      "id": "tpl-decision-no",
+      "label": "Alternative plan",
+      "color": "#fecdd3",
+      "shape": "rectangle",
+      "fontSize": "16",
+      "x": 760,
+      "y": 300
+    }
+  ],
+  "edges": [
+    {
+      "id": "tpl-decision-e1",
+      "from": "tpl-decision-start",
+      "to": "tpl-decision-choice",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "bend": 30,
+      "label": null
+    },
+    {
+      "id": "tpl-decision-e2",
+      "from": "tpl-decision-choice",
+      "to": "tpl-decision-yes",
+      "fromAnchor": "north",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "90-horizontal",
+      "bend": 30,
+      "label": { "text": "Yes", "position": "auto" }
+    },
+    {
+      "id": "tpl-decision-e3",
+      "from": "tpl-decision-choice",
+      "to": "tpl-decision-no",
+      "fromAnchor": "south",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "90-horizontal",
+      "bend": 30,
+      "label": { "text": "No", "position": "auto" }
+    }
+  ],
+  "textBlocks": []
+}

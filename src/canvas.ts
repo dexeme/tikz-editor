@@ -1042,18 +1042,18 @@ export function createCanvasRenderer(canvas, state) {
     ctx.save();
     ctx.scale(1 / scale, 1 / scale);
     ctx.beginPath();
-    ctx.rect(
-      block.x + TEXT_BLOCK_PADDING,
-      block.y + TEXT_BLOCK_PADDING,
-      block.width - TEXT_BLOCK_PADDING * 2,
-      block.height - TEXT_BLOCK_PADDING * 2
-    );
+    const contentWidth = Math.max(block.width - TEXT_BLOCK_PADDING * 2, 0);
+    const contentHeight = Math.max(block.height - TEXT_BLOCK_PADDING * 2, 0);
+    const clipX = (block.x + TEXT_BLOCK_PADDING) * scale;
+    const clipY = (block.y + TEXT_BLOCK_PADDING) * scale;
+    ctx.rect(clipX, clipY, contentWidth * scale, contentHeight * scale);
     ctx.clip();
     const textColor = typeof block.color === 'string' && block.color
       ? block.color
       : palette.textBlockText;
     ctx.fillStyle = textColor;
-    ctx.font = `${block.fontWeight || 500} ${block.fontSize || 16}px Inter, system-ui`;
+    const scaledFontSize = (block.fontSize || 16) * scale;
+    ctx.font = `${block.fontWeight || 500} ${scaledFontSize}px Inter, system-ui`;
     ctx.textBaseline = 'top'; // This is now relative to the unscaled context
     ctx.textAlign = 'left';
     drawWrappedText(block.text || '', block);
@@ -1561,6 +1561,50 @@ export function createCanvasRenderer(canvas, state) {
     ctx.restore();
   }
 
+  function drawSpacingIndicator(entry, options = {}) {
+    if (!entry?.from || !entry?.to) {
+      return;
+    }
+    const scale = getCameraScale();
+    const color = options.color || '#f97316';
+    ctx.save();
+    ctx.lineWidth = (options.lineWidth || 1.4) / scale;
+    ctx.strokeStyle = color;
+    ctx.fillStyle = options.textColor || color;
+    if (options.dashed !== false) {
+      ctx.setLineDash([4 / scale, 4 / scale]);
+    }
+    ctx.beginPath();
+    ctx.moveTo(entry.from.x, entry.from.y);
+    ctx.lineTo(entry.to.x, entry.to.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const tick = (options.tickSize || 6) / scale;
+    ctx.beginPath();
+    if (entry.axis === 'y') {
+      ctx.moveTo(entry.from.x - tick, entry.from.y);
+      ctx.lineTo(entry.from.x + tick, entry.from.y);
+      ctx.moveTo(entry.to.x - tick, entry.to.y);
+      ctx.lineTo(entry.to.x + tick, entry.to.y);
+    } else {
+      ctx.moveTo(entry.from.x, entry.from.y - tick);
+      ctx.lineTo(entry.from.x, entry.from.y + tick);
+      ctx.moveTo(entry.to.x, entry.to.y - tick);
+      ctx.lineTo(entry.to.x, entry.to.y + tick);
+    }
+    ctx.stroke();
+    const label = entry.label || (entry.gap != null ? `${Math.round(entry.gap)}px` : '');
+    if (label) {
+      ctx.font = `${(options.fontSize || 12) / scale}px Inter, system-ui`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      const midX = (entry.from.x + entry.to.x) / 2;
+      const midY = (entry.from.y + entry.to.y) / 2 - 6 / scale;
+      ctx.fillText(label, midX, midY);
+    }
+    ctx.restore();
+  }
+
   function drawGuides() {
     const guides = state.guides;
     if (!guides) return;
@@ -1616,6 +1660,14 @@ export function createCanvasRenderer(canvas, state) {
         ctx.stroke();
       }
       ctx.restore();
+    }
+    if (guides.spacing) {
+      drawSpacingIndicator(guides.spacing, { color: '#f97316' });
+    }
+    if (Array.isArray(state.spacingMeasurements) && state.spacingMeasurements.length) {
+      state.spacingMeasurements.forEach(entry =>
+        drawSpacingIndicator(entry, { color: '#ef4444', dashed: true })
+      );
     }
     ctx.restore();
   }

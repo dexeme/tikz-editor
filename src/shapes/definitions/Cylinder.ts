@@ -249,8 +249,8 @@ export function registerCylinder() {
     const raw = params?.raw ?? {};
     const registerColor = typeof context.registerColor === 'function' ? context.registerColor : null;
     const metrics = getCylinderMetrics(raw);
-    const minimumWidth = formatCm(metrics.width) || '4cm';
-    const minimumHeight = formatCm(metrics.totalHeight) || '4cm';
+    const minimumWidth = formatCm(metrics.contentWidth) || '4cm';
+    const minimumHeight = formatCm(metrics.bodyHeight) || '4cm';
     options.push(`minimum width=${minimumWidth}`);
     options.push(`minimum height=${minimumHeight}`);
 

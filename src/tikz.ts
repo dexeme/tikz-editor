@@ -50,6 +50,36 @@ const formatScaleOption = (scale, axis) => {
   return `${axis}scale=${normalized}`;
 };
 
+const shouldCompensateScale = value =>
+  Number.isFinite(value) && Math.abs(value - 1) > SCALE_EPSILON;
+
+const formatInverseScale = value => {
+  if (!Number.isFinite(value) || value === 0) {
+    return '1';
+  }
+  const inverse = Number((1 / value).toFixed(4));
+  if (!Number.isFinite(inverse) || Math.abs(inverse - 1) < SCALE_EPSILON) {
+    return '1';
+  }
+  const normalized = inverse.toString().replace(/\.?0+$/, '');
+  return normalized || '1';
+};
+
+const compensateLabelScale = (rawContent, scales = { x: 1, y: 1 }) => {
+  const content = rawContent ?? '';
+  if (typeof content === 'string' && /\\nodepart\b/.test(content)) {
+    return content;
+  }
+  const needsX = shouldCompensateScale(scales.x);
+  const needsY = shouldCompensateScale(scales.y);
+  if (!content || (!needsX && !needsY)) {
+    return content;
+  }
+  const xFactor = needsX ? formatInverseScale(scales.x) : '1';
+  const yFactor = needsY ? formatInverseScale(scales.y) : '1';
+  return `\\scalebox{${xFactor}}[${yFactor}]{${content}}`;
+};
+
 const formatFontSizePt = value => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) {
@@ -378,18 +408,25 @@ export function generateTikzDocument(
     const actualSize = resolveNodeSize(node);
     const defaultSize = getDefaultNodeSize(normalizedNode.shape);
     const scaleOptions = [];
+    const scaleFactors = { x: 1, y: 1 };
     if (defaultSize?.width > 0 && actualSize?.width > 0) {
       const xScaleValue = actualSize.width / defaultSize.width;
-      const option = formatScaleOption(xScaleValue, 'x');
-      if (option) {
-        scaleOptions.push(option);
+      if (Number.isFinite(xScaleValue) && xScaleValue > 0) {
+        scaleFactors.x = xScaleValue;
+        const option = formatScaleOption(xScaleValue, 'x');
+        if (option) {
+          scaleOptions.push(option);
+        }
       }
     }
     if (defaultSize?.height > 0 && actualSize?.height > 0) {
       const yScaleValue = actualSize.height / defaultSize.height;
-      const option = formatScaleOption(yScaleValue, 'y');
-      if (option) {
-        scaleOptions.push(option);
+      if (Number.isFinite(yScaleValue) && yScaleValue > 0) {
+        scaleFactors.y = yScaleValue;
+        const option = formatScaleOption(yScaleValue, 'y');
+        if (option) {
+          scaleOptions.push(option);
+        }
       }
     }
 
@@ -404,8 +441,9 @@ export function generateTikzDocument(
     const x = formatCoordinate(normalizeX(node.x));
     const y = formatCoordinate(-normalizeY(node.y));
 
-    const labelContent =
+    const rawLabelContent =
       labelOverride != null ? labelOverride : formatNodeLabel(normalizedNode.label);
+    const labelContent = compensateLabelScale(rawLabelContent, scaleFactors);
     body += `    \\node[${optionSegments.join(', ')}] (${node.id}) at (${x},${y}) {${labelContent}};\n`;
   });
 
@@ -626,5 +664,5 @@ export function generateTikzDocument(
   const libraryLine = libraries.size ? `\\usetikzlibrary{${Array.from(libraries).join(', ')}}\n` : '';
   const colorBlock = colorDeclarations.length ? `${colorDeclarations.join('\n')}\n` : '';
 
-  return `\\documentclass{standalone}\n\\usepackage{tikz}\n\\usepackage{amsmath}\n\\usepackage{amssymb}\n${libraryLine}${colorBlock}\n\\begin{document}\n${body}\\end{document}`;
+  return `\\documentclass{standalone}\n\\usepackage{tikz}\n\\usepackage{graphicx}\n\\usepackage{amsmath}\n\\usepackage{amssymb}\n${libraryLine}${colorBlock}\n\\begin{document}\n${body}\\end{document}`;
 }

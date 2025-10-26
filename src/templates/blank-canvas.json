@@ -1,0 +1,8 @@
+{
+  "id": "blank-canvas",
+  "name": "Blank canvas",
+  "description": "Clear the editor and start a new diagram from scratch.",
+  "nodes": [],
+  "edges": [],
+  "textBlocks": []
+}

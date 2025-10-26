@@ -128,36 +128,15 @@ function applyShapeDefaults(node) {
   }
 
   const shape = typeof node.shape === 'string' ? node.shape : 'circle';
+  node.shape = shape;
   node.size = normalizeNodeSizeForShape(node.size, shape);
 
-  if (node.shape === 'rectangle') {
-    if (!node.color || node.color === '#f8fafc') {
-      node.color = '#d9ffff'; // Approximation of cyan!15 for canvas rendering
-    }
-    if (!node.borderColor || node.borderColor === '#94a3b8') {
-      node.borderColor = '#800080'; // Purple stroke color
-    }
-    const widthValue = Number(node.borderWidth);
-    if (!Number.isFinite(widthValue) || widthValue === 3) {
-      node.borderWidth = 2.7; // Approximate 2pt stroke width in canvas pixels
-    }
-    if (!node.fontSize || node.fontSize === '16') {
-      node.fontSize = '24'; // Approximation of \Large
-    }
-    if (!node.fontWeight) {
-      node.fontWeight = '700'; // Bold font weight
-    }
-    if (!node.fontFamily) {
-      node.fontFamily = 'system-ui, sans-serif';
-    }
-  }
-
-  if (node.shape === 'rectangle split') {
+  if (shape === 'rectangle split') {
     ensureRectangleSplitCells(node);
     return;
   }
 
-  if (node.shape !== 'cylinder') {
+  if (shape !== 'cylinder') {
     return;
   }
 
@@ -390,10 +369,11 @@ function normalizeNode(node = {}) {
     ? Math.min(64, cornerRadiusValue)
     : 16;
   const opacityValue = Number(normalized.opacity);
-  if (!Number.isFinite(opacityValue) || opacityValue < 0.1 || opacityValue > 1) {
+  if (!Number.isFinite(opacityValue)) {
     normalized.opacity = 1;
   } else {
-    normalized.opacity = Number(opacityValue.toFixed(2));
+    const clampedOpacity = Math.min(1, Math.max(0, opacityValue));
+    normalized.opacity = Number(clampedOpacity.toFixed(2));
   }
   applyShapeDefaults(normalized);
   return normalized;
@@ -505,7 +485,9 @@ createApp({
         offsetY: 0,
       },
       cameraDrag: null,
-      guides: { vertical: null, horizontal: null, snapTarget: null, rotation: null },
+      guides: { vertical: null, horizontal: null, snapTarget: null, rotation: null, spacing: null },
+      spacingMeasurements: null,
+      spacingMeasureActive: false,
       edgeThickness: DEFAULT_EDGE_THICKNESS,
       edgeLabelAlignment: 'right',
       selectionRect: null,
@@ -612,6 +594,64 @@ createApp({
       },
       { immediate: true }
     );
+
+    watch(
+      () => selectedNodes.value.map(node => `${node.id}:${node.x}:${node.y}`),
+      () => {
+        if (state.spacingMeasureActive) {
+          state.spacingMeasurements = computeSelectionSpacingPairs();
+          renderer.value?.draw();
+        }
+      }
+    );
+
+    function computeSelectionSpacingPairs() {
+      if (!renderer.value) {
+        return null;
+      }
+      const nodes = selectedNodes.value;
+      if (!Array.isArray(nodes) || nodes.length < 2) {
+        return null;
+      }
+      const boundsList = nodes
+        .map(node => renderer.value?.getNodeBounds(node))
+        .filter(Boolean);
+      if (boundsList.length < 2) {
+        return null;
+      }
+      boundsList.sort((a, b) => a.left - b.left);
+      const entries = [];
+      for (let index = 0; index < boundsList.length - 1; index += 1) {
+        const current = boundsList[index];
+        const next = boundsList[index + 1];
+        if (!current || !next) continue;
+        const gap = next.left - current.right;
+        if (!Number.isFinite(gap) || gap < 0.5) {
+          continue;
+        }
+        const baseline = Math.max(current.bottom, next.bottom) + 12;
+        entries.push({
+          axis: 'x',
+          from: { x: current.right, y: baseline },
+          to: { x: next.left, y: baseline },
+          gap,
+          label: `${Math.round(gap)}px`,
+        });
+      }
+      return entries.length ? entries : null;
+    }
+
+    function updateSpacingMeasurement(active) {
+      if (!active) {
+        state.spacingMeasureActive = false;
+        state.spacingMeasurements = null;
+        renderer.value?.draw();
+        return;
+      }
+      state.spacingMeasureActive = true;
+      state.spacingMeasurements = computeSelectionSpacingPairs();
+      renderer.value?.draw();
+    }
 
     const inspectorVisible = computed(() => {
       const type = state.selected?.type;
@@ -863,11 +903,12 @@ createApp({
       () => !!selectedNode.value || !!selectedEdge.value || !!selectedLine.value
     );
 
-    const templates = [
+const templates = [
       {
         id: 'blank-canvas',
         name: 'Blank canvas',
         description: 'Clear the editor and start a new diagram from scratch.',
+        previewImage: 'img/templates/blank.png', // <-- Adicione um caminho de imagem se desejar
         nodes: [],
         edges: [],
         textBlocks: [],
@@ -876,6 +917,7 @@ createApp({
         id: 'linear-flow',
         name: 'Linear step flow',
         description: 'Template with three sequential stages for simple flows.',
+        previewImage: 'img/templates/linear-flow.png', // <-- Adicione um caminho de imagem se desejar
         nodes: [
           {
             id: 'tpl-linear-start',
@@ -948,6 +990,7 @@ createApp({
         id: 'decision-tree',
         name: 'Decision tree',
         description: 'Branched structure with a decision and two outcomes.',
+        previewImage: 'img/templates/decision-tree.png', // <-- Adicione um caminho de imagem se desejar
         nodes: [
           {
             id: 'tpl-decision-start',
@@ -1030,6 +1073,7 @@ createApp({
         id: 'pseudoentropy-views',
         name: 'Pseudoentropy: classical views',
         description: 'Diagram comparing the views of Yao, Hill, and Metric.',
+        previewImage: 'img/templates/pseudoentropy.png', // <-- Adicione um caminho de imagem se desejar
         nodes: [
           {
             id: 'tpl-pseudo-source',
@@ -1174,6 +1218,878 @@ createApp({
         ],
         textBlocks: [],
       },
+      {
+        "id": "compressibility-illustration-bits",
+        "name": "Compressibility Illustration (Bits)",
+        "description": "Illustrates compressibility of patterned (low-entropy) vs. random-like (high-entropy) bit sequences.",
+        "previewImage": "img/templates/compressibility.png",
+        "nodes": [
+          {
+            "id": "node-seq-pattern",
+            "x": 250,
+            "y": 150,
+            "label": "00000000\n11111111",
+            "color": "#f8fafc",
+            "borderColor": "#94a3b8",
+            "shape": "rectangle",
+            "size": { "width": 140, "height": 70 },
+            "fontSize": "14",
+            "borderWidth": 2,
+            "borderStyle": "solid",
+            "cornerRadius": 8,
+            "opacity": 1
+          },
+          {
+            "id": "node-comp-pattern",
+            "x": 550,
+            "y": 150,
+            "label": "Comprimido\n(Bem menor)",
+            "color": "#f8fafc",
+            "borderColor": "#94a3b8",
+            "shape": "rectangle",
+            "size": { "width": 120, "height": 70 },
+            "fontSize": "14",
+            "borderWidth": 2,
+            "borderStyle": "dashed",
+            "cornerRadius": 8,
+            "opacity": 1
+          },
+          {
+            "id": "node-seq-random",
+            "x": 250,
+            "y": 350,
+            "label": "10110010\n01101001",
+            "color": "#f8fafc",
+            "borderColor": "#94a3b8",
+            "shape": "rectangle",
+            "size": { "width": 140, "height": 70 },
+            "fontSize": "14",
+            "borderWidth": 2,
+            "borderStyle": "solid",
+            "cornerRadius": 8,
+            "opacity": 1
+          },
+          {
+            "id": "node-comp-random",
+            "x": 550,
+            "y": 350,
+            "label": "Comprimido\n(Tamanho similar)",
+            "color": "#f8fafc",
+            "borderColor": "#94a3b8",
+            "shape": "rectangle",
+            "size": { "width": 140, "height": 70 },
+            "fontSize": "14",
+            "borderWidth": 2,
+            "borderStyle": "dashed",
+            "cornerRadius": 8,
+            "opacity": 1
+          }
+        ],
+        "edges": [
+          {
+            "id": "edge-compress-pattern",
+            "from": "node-seq-pattern",
+            "to": "node-comp-pattern",
+            "fromAnchor": "east",
+            "toAnchor": "west",
+            "style": "solid",
+            "direction": "->",
+            "shape": "straight",
+            "bend": 30,
+            "label": { "text": "Compressão", "position": "auto" },
+            "color": "#94a3b8",
+            "thickness": 2.5
+          },
+          {
+            "id": "edge-compress-random",
+            "from": "node-seq-random",
+            "to": "node-comp-random",
+            "fromAnchor": "east",
+            "toAnchor": "west",
+            "style": "solid",
+            "direction": "->",
+            "shape": "straight",
+            "bend": 30,
+            "label": { "text": "Compressão", "position": "auto" },
+            "color": "#94a3b8",
+            "thickness": 2.5
+          }
+        ],
+        "lines": [],
+        "textBlocks": [
+          {
+            "id": "text-label-pattern",
+            "x": 170,
+            "y": 205,
+            "width": 160,
+            "height": 60,
+            "text": "Sequência Compressível\n(Baixa Entropia / Padrão)",
+            "fontSize": 13,
+            "fontWeight": 500,
+            "color": null,
+            "fillColor": null,
+            "borderColor": null,
+            "borderWidth": 0,
+            "borderStyle": "solid",
+            "showBackground": false,
+            "opacity": 1
+          },
+          {
+            "id": "text-label-random",
+            "x": 170,
+            "y": 405,
+            "width": 160,
+            "height": 60,
+            "text": "Sequência Incompressível\n(Alta Entropia / Aleatória)",
+            "fontSize": 13,
+            "fontWeight": 500,
+            "color": null,
+            "fillColor": null,
+            "borderColor": null,
+            "borderWidth": 0,
+            "borderStyle": "solid",
+            "showBackground": false,
+            "opacity": 1
+          }
+        ],
+        "matrixGrids": [],
+        "frame": null,
+        "edgeThickness": 2.5,
+        "edgeLabelAlignment": "auto"
+      },
+      {
+  "id": "graph-drawing-taxonomy",
+  "name": "Taxonomia de Desenho de Grafos",
+  "description": "Um fluxograma mostrando diferentes abordagens para o desenho de grafos.",
+  "previewImage": null,
+  "nodes": [
+    {
+      "id": "n-root",
+      "x": 50,
+      "y": 400,
+      "label": "Desenho\nde grafos",
+      "color": "#e5e7eb",
+      "borderColor": "#94a3b8",
+      "shape": "rectangle",
+      "size": { "width": 120, "height": 70 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-geral",
+      "x": 250,
+      "y": 200,
+      "label": "Caso geral",
+      "color": "#e5e7eb",
+      "borderColor": "#94a3b8",
+      "shape": "rectangle",
+      "size": { "width": 120, "height": 70 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-especificos",
+      "x": 250,
+      "y": 600,
+      "label": "Casos\nespecíficos",
+      "color": "#e5e7eb",
+      "borderColor": "#94a3b8",
+      "shape": "rectangle",
+      "size": { "width": 120, "height": 70 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-forca",
+      "x": 450,
+      "y": 100,
+      "label": "Baseados\nem força",
+      "color": "#e5e7eb",
+      "borderColor": "#94a3b8",
+      "shape": "rectangle",
+      "size": { "width": 120, "height": 70 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-reducao",
+      "x": 450,
+      "y": 200,
+      "label": "Redução\nMultidimensional",
+      "color": "#e5e7eb",
+      "borderColor": "#94a3b8",
+      "shape": "rectangle",
+      "size": { "width": 140, "height": 70 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-multinivel",
+      "x": 450,
+      "y": 300,
+      "label": "Multinível",
+      "color": "#e5e7eb",
+      "borderColor": "#94a3b8",
+      "shape": "rectangle",
+      "size": { "width": 120, "height": 50 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-dags",
+      "x": 450,
+      "y": 500,
+      "label": "DAGs",
+      "color": "#e5e7eb",
+      "borderColor": "#94a3b8",
+      "shape": "rectangle",
+      "size": { "width": 120, "height": 50 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-planares",
+      "x": 450,
+      "y": 600,
+      "label": "Planares",
+      "color": "#e5e7eb",
+      "borderColor": "#94a3b8",
+      "shape": "rectangle",
+      "size": { "width": 120, "height": 50 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-arvores",
+      "x": 450,
+      "y": 700,
+      "label": "Árvores",
+      "color": "#e5e7eb",
+      "borderColor": "#94a3b8",
+      "shape": "rectangle",
+      "size": { "width": 120, "height": 50 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-elastico",
+      "x": 650,
+      "y": 50,
+      "label": "Elástico-\nElétrico",
+      "color": "#e5e7eb",
+      "borderColor": "#94a3b8",
+      "shape": "rectangle",
+      "size": { "width": 120, "height": 70 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-energia",
+      "x": 650,
+      "y": 150,
+      "label": "Energia",
+      "color": "#e5e7eb",
+      "borderColor": "#94a3b8",
+      "shape": "rectangle",
+      "size": { "width": 120, "height": 50 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-mds-metrico",
+      "x": 650,
+      "y": 210,
+      "label": "MDS\nMétrico",
+      "color": "#e5e7eb",
+      "borderColor": "#94a3b8",
+      "shape": "rectangle",
+      "size": { "width": 120, "height": 50 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-mds-classico",
+      "x": 650,
+      "y": 270,
+      "label": "MDS\nClássico",
+      "color": "#e5e7eb",
+      "borderColor": "#94a3b8",
+      "shape": "rectangle",
+      "size": { "width": 120, "height": 50 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-hu",
+      "x": 650,
+      "y": 330,
+      "label": "Hu",
+      "color": "#fef9c3",
+      "borderColor": "#fde047",
+      "shape": "rectangle",
+      "size": { "width": 120, "height": 50 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-walshaw",
+      "x": 650,
+      "y": 390,
+      "label": "Walshaw",
+      "color": "#dbeafe",
+      "borderColor": "#93c5fd",
+      "shape": "rectangle",
+      "size": { "width": 120, "height": 50 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-sugiyama",
+      "x": 650,
+      "y": 500,
+      "label": "Sugiyama",
+      "color": "#dbeafe",
+      "borderColor": "#93c5fd",
+      "shape": "rectangle",
+      "size": { "width": 120, "height": 50 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-tutte",
+      "x": 650,
+      "y": 570,
+      "label": "Tutte",
+      "color": "#dbeafe",
+      "borderColor": "#93c5fd",
+      "shape": "rectangle",
+      "size": { "width": 120, "height": 50 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-schnyder",
+      "x": 650,
+      "y": 630,
+      "label": "Schnyder",
+      "color": "#dbeafe",
+      "borderColor": "#93c5fd",
+      "shape": "rectangle",
+      "size": { "width": 120, "height": 50 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-planet",
+      "x": 650,
+      "y": 690,
+      "label": "PLANET",
+      "color": "#dbeafe",
+      "borderColor": "#93c5fd",
+      "shape": "rectangle",
+      "size": { "width": 120, "height": 50 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-reingold",
+      "x": 650,
+      "y": 750,
+      "label": "Reingold\n& Tilford",
+      "color": "#dbeafe",
+      "borderColor": "#93c5fd",
+      "shape": "rectangle",
+      "size": { "width": 120, "height": 70 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-eades",
+      "x": 850,
+      "y": -30,
+      "label": "Eades",
+      "color": "#dbeafe",
+      "borderColor": "#93c5fd",
+      "shape": "rectangle",
+      "size": { "width": 160, "height": 50 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-fruchterman",
+      "x": 850,
+      "y": 30,
+      "label": "Fruchterman\n& Reingold",
+      "color": "#fef9c3",
+      "borderColor": "#fde047",
+      "shape": "rectangle",
+      "size": { "width": 160, "height": 70 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-bigangle",
+      "x": 850,
+      "y": 110,
+      "label": "BIGANGLE",
+      "color": "#fef9c3",
+      "borderColor": "#fde047",
+      "shape": "rectangle",
+      "size": { "width": 160, "height": 50 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-kamada",
+      "x": 850,
+      "y": 170,
+      "label": "Kamada &\nKawai",
+      "color": "#dbeafe",
+      "borderColor": "#93c5fd",
+      "shape": "rectangle",
+      "size": { "width": 160, "height": 70 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-forceatlas",
+      "x": 850,
+      "y": 250,
+      "label": "ForceAtlas2",
+      "color": "#dbeafe",
+      "borderColor": "#93c5fd",
+      "shape": "rectangle",
+      "size": { "width": 160, "height": 50 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-stress",
+      "x": 850,
+      "y": 310,
+      "label": "Stress\nMajorization",
+      "color": "#dbeafe",
+      "borderColor": "#93c5fd",
+      "shape": "rectangle",
+      "size": { "width": 160, "height": 70 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    },
+    {
+      "id": "n-pivot",
+      "x": 850,
+      "y": 390,
+      "label": "PivotMDS",
+      "color": "#dbeafe",
+      "borderColor": "#93c5fd",
+      "shape": "rectangle",
+      "size": { "width": 160, "height": 50 },
+      "fontSize": "14",
+      "borderWidth": 2,
+      "borderStyle": "solid",
+      "cornerRadius": 8,
+      "opacity": 1
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-root-geral",
+      "from": "n-root",
+      "to": "n-geral",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-root-especificos",
+      "from": "n-root",
+      "to": "n-especificos",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-geral-forca",
+      "from": "n-geral",
+      "to": "n-forca",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-geral-reducao",
+      "from": "n-geral",
+      "to": "n-reducao",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-geral-multinivel",
+      "from": "n-geral",
+      "to": "n-multinivel",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-especificos-dags",
+      "from": "n-especificos",
+      "to": "n-dags",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-especificos-planares",
+      "from": "n-especificos",
+      "to": "n-planares",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-especificos-arvores",
+      "from": "n-especificos",
+      "to": "n-arvores",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-forca-elastico",
+      "from": "n-forca",
+      "to": "n-elastico",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-forca-energia",
+      "from": "n-forca",
+      "to": "n-energia",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-reducao-metrico",
+      "from": "n-reducao",
+      "to": "n-mds-metrico",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-reducao-classico",
+      "from": "n-reducao",
+      "to": "n-mds-classico",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-multinivel-hu",
+      "from": "n-multinivel",
+      "to": "n-hu",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-multinivel-walshaw",
+      "from": "n-multinivel",
+      "to": "n-walshaw",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-dags-sugiyama",
+      "from": "n-dags",
+      "to": "n-sugiyama",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-planares-tutte",
+      "from": "n-planares",
+      "to": "n-tutte",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-planares-schnyder",
+      "from": "n-planares",
+      "to": "n-schnyder",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-planares-planet",
+      "from": "n-planares",
+      "to": "n-planet",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-arvores-reingold",
+      "from": "n-arvores",
+      "to": "n-reingold",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-elastico-eades",
+      "from": "n-elastico",
+      "to": "n-eades",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-elastico-fruchterman",
+      "from": "n-elastico",
+      "to": "n-fruchterman",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-elastico-bigangle",
+      "from": "n-elastico",
+      "to": "n-bigangle",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-energia-kamada",
+      "from": "n-energia",
+      "to": "n-kamada",
+      "fromAnchor": "east",
+      "toAnchor":"west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-energia-forceatlas",
+      "from": "n-energia",
+      "to": "n-forceatlas",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id": "e-metrico-stress",
+      "from": "n-mds-metrico",
+      "to": "n-stress",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    },
+    {
+      "id":-"e-classico-pivot",
+      "from": "n-mds-classico",
+      "to": "n-pivot",
+      "fromAnchor": "east",
+      "toAnchor": "west",
+      "style": "solid",
+      "direction": "->",
+      "shape": "straight",
+      "color": "#94a3b8",
+      "thickness": 2
+    }
+  ],
+  "lines": [],
+  "textBlocks": [],
+  "matrixGrids": [],
+  "frame": null,
+  "edgeThickness": 2,
+  "edgeLabelAlignment": "auto"
+}
     ];
 
     const canvasRef = ref(null);
@@ -4436,6 +5352,36 @@ createApp({
         }
         return true;
       }
+      if (selection.type === 'line' && selection.item) {
+        const line = selection.item;
+        const start = {
+          x: Number(line.start?.x) || 0,
+          y: Number(line.start?.y) || 0,
+        };
+        const end = {
+          x: Number(line.end?.x) || 0,
+          y: Number(line.end?.y) || 0,
+        };
+        clipboard.value = {
+          type: 'line',
+          center: {
+            x: (start.x + end.x) / 2,
+            y: (start.y + end.y) / 2,
+          },
+          line: {
+            start,
+            end,
+            color: line.color,
+            style: line.style,
+            thickness: line.thickness,
+            label: line.label,
+          },
+        };
+        if (!options?.silent) {
+          flash('Linha copiada. Use Ctrl+V para colar.');
+        }
+        return true;
+      }
       if (selection.type === 'matrix' && selection.item) {
         const grid = selection.item;
         clipboard.value = {
@@ -4534,6 +5480,47 @@ createApp({
         pushHistory();
         renderer.value?.draw();
         flash(options.message || 'Elementos colados no canvas.');
+        return true;
+      }
+
+      if (payload.type === 'line' && payload.line) {
+        const lineData = payload.line;
+        const start = {
+          x: (Number(lineData.start?.x) || 0) + offsetX,
+          y: (Number(lineData.start?.y) || 0) + offsetY,
+        };
+        const end = {
+          x: (Number(lineData.end?.x) || 0) + offsetX,
+          y: (Number(lineData.end?.y) || 0) + offsetY,
+        };
+        const newLine = makeLine(start, end);
+        if (typeof lineData.color === 'string' && lineData.color.trim()) {
+          newLine.color = lineData.color.trim();
+        }
+        const styleOptions = new Set(['solid', 'dashed', 'dotted']);
+        if (typeof lineData.style === 'string') {
+          const normalizedStyle = lineData.style.trim().toLowerCase();
+          if (styleOptions.has(normalizedStyle)) {
+            newLine.style = normalizedStyle;
+          }
+        }
+        const thicknessValue = Number(lineData.thickness);
+        if (Number.isFinite(thicknessValue) && thicknessValue > 0) {
+          newLine.thickness = thicknessValue;
+        } else if (lineData.thickness === null) {
+          newLine.thickness = null;
+        }
+        if (typeof lineData.label === 'string') {
+          const trimmedLabel = lineData.label.trim();
+          newLine.label = trimmedLabel || null;
+        } else if (lineData.label == null) {
+          newLine.label = null;
+        }
+        state.lines = [...state.lines, newLine];
+        setSelected({ type: 'line', item: newLine });
+        pushHistory();
+        renderer.value?.draw();
+        flash(options.message || 'Linha colada no canvas.');
         return true;
       }
 
@@ -4650,6 +5637,7 @@ createApp({
       state.guides.horizontal = null;
       state.guides.snapTarget = null;
       state.guides.rotation = null;
+      state.guides.spacing = null;
     }
 
     function applyGuides(optionsOrVertical, maybeHorizontal) {
@@ -4664,17 +5652,20 @@ createApp({
           horizontal = null,
           snapTarget = null,
           rotation = null,
+          spacing = null,
         } = optionsOrVertical;
         state.guides.vertical = vertical;
         state.guides.horizontal = horizontal;
         state.guides.snapTarget = snapTarget;
         state.guides.rotation = rotation;
+        state.guides.spacing = spacing;
         return;
       }
       state.guides.vertical = optionsOrVertical ?? null;
       state.guides.horizontal = maybeHorizontal ?? null;
       state.guides.snapTarget = null;
       state.guides.rotation = null;
+      state.guides.spacing = null;
     }
 
     function getNodesWithinRect(rect) {
@@ -4918,18 +5909,16 @@ createApp({
       return true;
     }
 
-    function collectGuideCandidates(context) {
-      const result = { vertical: [], horizontal: [] };
+    function collectStaticBounds(context) {
+      const boundsList = [];
       if (!renderer.value) {
-        return result;
+        return boundsList;
       }
-
-      const addBounds = bounds => {
-        if (!bounds) return;
-        result.vertical.push(bounds.left, bounds.centerX, bounds.right);
-        result.horizontal.push(bounds.top, bounds.centerY, bounds.bottom);
+      const pushBounds = bounds => {
+        if (bounds && Number.isFinite(bounds.left) && Number.isFinite(bounds.top)) {
+          boundsList.push(bounds);
+        }
       };
-
       const skipIds = new Set();
       if (context.mode === 'move-node') {
         if (Array.isArray(context.selection) && context.selection.length) {
@@ -4942,30 +5931,197 @@ createApp({
           skipIds.add(context.item.id);
         }
       }
-
       state.nodes.forEach(node => {
         if (skipIds.has(node.id)) return;
-        addBounds(renderer.value.getNodeBounds(node));
+        pushBounds(renderer.value.getNodeBounds(node));
       });
-
       (state.textBlocks || []).forEach(block => {
-        if (context.mode === 'move-text' && block.id === context.item.id) return;
-        addBounds(renderer.value.getTextBlockBounds(block));
+        if (context.mode === 'move-text' && block.id === context.item?.id) return;
+        pushBounds(renderer.value.getTextBlockBounds(block));
       });
-
       (state.matrixGrids || []).forEach(grid => {
-        if (context.mode === 'move-matrix' && grid.id === context.item.id) return;
-        const bounds = renderer.value?.getMatrixGridBounds?.(grid);
-        addBounds(bounds);
+        if (context.mode === 'move-matrix' && grid.id === context.item?.id) return;
+        pushBounds(renderer.value?.getMatrixGridBounds?.(grid));
       });
-
       if (state.frame) {
-        addBounds(renderer.value.getFrameBounds(state.frame));
+        pushBounds(renderer.value.getFrameBounds(state.frame));
       }
+      return boundsList;
+    }
 
+    function collectGuideCandidates(context) {
+      const result = { vertical: [], horizontal: [] };
+      const boundsList = collectStaticBounds(context);
+      boundsList.forEach(bounds => {
+        result.vertical.push(bounds.left, bounds.centerX, bounds.right);
+        result.horizontal.push(bounds.top, bounds.centerY, bounds.bottom);
+      });
       result.vertical = Array.from(new Set(result.vertical));
       result.horizontal = Array.from(new Set(result.horizontal));
       return result;
+    }
+
+    const SPACING_SNAP_TOLERANCE = 8;
+    const MIN_SPACING_FOR_SNAP = 2;
+
+    function computeAxisGaps(boundsList, axis) {
+      const sorted = [...boundsList].sort((a, b) =>
+        axis === 'x' ? a.left - b.left : a.top - b.top
+      );
+      const gaps = new Set();
+      for (let index = 0; index < sorted.length - 1; index += 1) {
+        const current = sorted[index];
+        const next = sorted[index + 1];
+        if (!current || !next) continue;
+        const gap =
+          axis === 'x' ? next.left - current.right : next.top - current.bottom;
+        if (Number.isFinite(gap) && gap >= MIN_SPACING_FOR_SNAP) {
+          gaps.add(Number(gap.toFixed(2)));
+        }
+      }
+      return Array.from(gaps);
+    }
+
+    function buildSpacingGuide(axis, orientation, baseBounds, referenceBounds, gap, dx, dy) {
+      if (axis === 'x') {
+        const left = baseBounds.left + dx;
+        const right = baseBounds.right + dx;
+        const baseline = Math.max(referenceBounds.bottom, baseBounds.bottom + dy) + 12;
+        if (orientation === 'right-of') {
+          return {
+            axis: 'x',
+            from: { x: referenceBounds.right, y: baseline },
+            to: { x: left, y: baseline },
+            gap,
+          };
+        }
+        return {
+          axis: 'x',
+          from: { x: right, y: baseline },
+          to: { x: referenceBounds.left, y: baseline },
+          gap,
+        };
+      }
+      const top = baseBounds.top + dy;
+      const bottom = baseBounds.bottom + dy;
+      const baseline = Math.max(referenceBounds.right, baseBounds.right + dx) + 12;
+      if (orientation === 'below') {
+        return {
+          axis: 'y',
+          from: { x: baseline, y: referenceBounds.bottom },
+          to: { x: baseline, y: top },
+          gap,
+        };
+      }
+      return {
+        axis: 'y',
+        from: { x: baseline, y: bottom },
+        to: { x: baseline, y: referenceBounds.top },
+        gap,
+      };
+    }
+
+    function computeSpacingAdjustment(context, dx, dy) {
+      if (!context.bounds) {
+        return null;
+      }
+      const staticBounds = collectStaticBounds(context);
+      if (!staticBounds.length) {
+        return null;
+      }
+      const baseBounds = context.bounds;
+      const gapsX = computeAxisGaps(staticBounds, 'x');
+      const gapsY = computeAxisGaps(staticBounds, 'y');
+      let snappedDx = dx;
+      let snappedDy = dy;
+      let spacingGuide = null;
+
+      const evaluateAxis = (axis, gaps, currentDelta) => {
+        if (!gaps.length) {
+          return;
+        }
+        let best = null;
+        staticBounds.forEach(bounds => {
+          gaps.forEach(gap => {
+            if (!Number.isFinite(gap)) return;
+            if (axis === 'x') {
+              const candidateLeft = bounds.right + gap;
+              const dxCandidate = candidateLeft - baseBounds.left;
+              const deltaRight = Math.abs(dxCandidate - currentDelta);
+              if (deltaRight <= SPACING_SNAP_TOLERANCE && (!best || deltaRight < best.delta)) {
+                best = {
+                  axis: 'x',
+                  delta: deltaRight,
+                  value: dxCandidate,
+                  orientation: 'right-of',
+                  ref: bounds,
+                  gap,
+                };
+              }
+              const candidateRight = bounds.left - gap;
+              const dxCandidateLeft = candidateRight - baseBounds.right;
+              const deltaLeft = Math.abs(dxCandidateLeft - currentDelta);
+              if (deltaLeft <= SPACING_SNAP_TOLERANCE && (!best || deltaLeft < best.delta)) {
+                best = {
+                  axis: 'x',
+                  delta: deltaLeft,
+                  value: dxCandidateLeft,
+                  orientation: 'left-of',
+                  ref: bounds,
+                  gap,
+                };
+              }
+            } else {
+              const candidateTop = bounds.bottom + gap;
+              const dyCandidate = candidateTop - baseBounds.top;
+              const deltaBelow = Math.abs(dyCandidate - currentDelta);
+              if (deltaBelow <= SPACING_SNAP_TOLERANCE && (!best || deltaBelow < best.delta)) {
+                best = {
+                  axis: 'y',
+                  delta: deltaBelow,
+                  value: dyCandidate,
+                  orientation: 'below',
+                  ref: bounds,
+                  gap,
+                };
+              }
+              const candidateBottom = bounds.top - gap;
+              const dyCandidateTop = candidateBottom - baseBounds.bottom;
+              const deltaAbove = Math.abs(dyCandidateTop - currentDelta);
+              if (deltaAbove <= SPACING_SNAP_TOLERANCE && (!best || deltaAbove < best.delta)) {
+                best = {
+                  axis: 'y',
+                  delta: deltaAbove,
+                  value: dyCandidateTop,
+                  orientation: 'above',
+                  ref: bounds,
+                  gap,
+                };
+              }
+            }
+          });
+        });
+        if (best) {
+          if (best.axis === 'x') {
+            snappedDx = best.value;
+            spacingGuide = buildSpacingGuide('x', best.orientation, baseBounds, best.ref, best.gap, snappedDx, snappedDy);
+          } else {
+            snappedDy = best.value;
+            spacingGuide = buildSpacingGuide('y', best.orientation, baseBounds, best.ref, best.gap, snappedDx, snappedDy);
+          }
+        }
+      };
+
+      evaluateAxis('x', gapsX, snappedDx);
+      evaluateAxis('y', gapsY, snappedDy);
+
+      if (spacingGuide) {
+        spacingGuide.label = `${Math.round(spacingGuide.gap)}px`;
+      }
+
+      return spacingGuide
+        ? { dx: snappedDx, dy: snappedDy, spacing: spacingGuide }
+        : null;
     }
 
     function computeGuideSnap(context, dx, dy) {
@@ -4978,6 +6134,7 @@ createApp({
       let snappedDy = dy;
       let verticalGuide = null;
       let horizontalGuide = null;
+      let spacingGuide = null;
 
       const initial = context.bounds;
 
@@ -5018,11 +6175,19 @@ createApp({
       ];
       evaluateAxis(candidates.horizontal, horizontalProjections, 'y');
 
+      const spacingAdjustment = computeSpacingAdjustment(context, snappedDx, snappedDy);
+      if (spacingAdjustment) {
+        snappedDx = spacingAdjustment.dx;
+        snappedDy = spacingAdjustment.dy;
+        spacingGuide = spacingAdjustment.spacing;
+      }
+
       return {
         dx: snappedDx,
         dy: snappedDy,
         vertical: verticalGuide,
         horizontal: horizontalGuide,
+        spacing: spacingGuide,
       };
     }
 
@@ -5636,7 +6801,11 @@ createApp({
           const guides = computeGuideSnap(context, dx, dy);
           if (guides) {
             ({ dx, dy } = guides);
-            applyGuides({ vertical: guides.vertical, horizontal: guides.horizontal });
+            applyGuides({
+              vertical: guides.vertical,
+              horizontal: guides.horizontal,
+              spacing: guides.spacing,
+            });
           } else {
             clearGuides();
           }
@@ -6191,6 +7360,10 @@ createApp({
           target.tagName === 'TEXTAREA' ||
           target.isContentEditable);
 
+      if (event.code === 'ControlLeft' && !event.repeat) {
+        updateSpacingMeasurement(true);
+      }
+
       if (event.key === 'Escape') {
         if (state.drawing) {
           cancelDrawing();
@@ -6340,6 +7513,9 @@ createApp({
     }
 
     function handleKeyUp(event) {
+      if (event.code === 'ControlLeft') {
+        updateSpacingMeasurement(false);
+      }
       if (event.code === 'Space') {
         panModifierActive.value = false;
         if (state.cameraDrag) {
